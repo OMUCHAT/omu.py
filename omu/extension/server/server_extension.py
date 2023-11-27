@@ -1,4 +1,4 @@
-from omu.client import Client, ClientListener
+from omu.client import Client
 from omu.extension.extension import Extension, define_extension_type
 from omu.extension.server.model.app import App, AppJson
 from omu.extension.table import TableExtensionType, define_table_type_model
@@ -12,12 +12,8 @@ AppsListKey = define_table_type_model(
 )
 
 
-class ServerExtension(Extension, ClientListener):
+class ServerExtension(Extension):
     def __init__(self, client: Client) -> None:
         self.client = client
-        client.add_listener(self)
         tables = client.extensions.get(TableExtensionType)
         self.apps = tables.register(AppsListKey)
-
-    async def on_initialized(self) -> None:
-        print("Server extension initialized!")

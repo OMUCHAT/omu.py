@@ -1,16 +1,8 @@
-from pydantic import BaseModel, validator
+class Address:
+    def __init__(self, host: str, port: int, secure: bool = False) -> None:
+        self.host = host
+        self.port = port
+        self.secure = secure
 
-
-class Address(BaseModel):
-    host: str
-    port: int
-    secure: bool = False
-
-    @validator("port")
-    def port_range(cls, v):
-        if not 0 <= v <= 65535:
-            raise ValueError("port must be in range 0-65535")
-        return v
-
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.host}:{self.port}"

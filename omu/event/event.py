@@ -1,14 +1,31 @@
+from __future__ import annotations
+
 import abc
 from typing import Any
-
-from pydantic import BaseModel
 
 from omu.interface.serializer import Serializer
 
 
-class EventJson[T](BaseModel):
-    type: str
-    data: T
+class EventJson[T]:
+    def __init__(self, type: str, data: T):
+        self.type = type
+        self.data = data
+
+    @classmethod
+    def from_json(cls, json: dict) -> EventJson[T]:
+        if "type" not in json:
+            raise ValueError("Missing type field in event json")
+        if "data" not in json:
+            raise ValueError("Missing data field in event json")
+        return cls(**json)
+
+    @classmethod
+    def from_json_as[_T](cls, _t: type[_T], json: dict) -> EventJson[_T]:
+        if "type" not in json:
+            raise ValueError("Missing type field in event json")
+        if "data" not in json:
+            raise ValueError("Missing data field in event json")
+        return cls(**json)  # type: ignore
 
 
 class EventType[T, D]():

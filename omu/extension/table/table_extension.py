@@ -157,10 +157,10 @@ class TableImpl[T: Keyable](Table[T]):
         )
         return res
 
-    async def add_listener(self, listener: TableListener[T]) -> None:
+    def add_listener(self, listener: TableListener[T]) -> None:
         self._listeners.append(listener)
 
-    async def remove_listener(self, listener: TableListener[T]) -> None:
+    def remove_listener(self, listener: TableListener[T]) -> None:
         self._listeners.remove(listener)
 
     async def _on_item_add(self, event: _TableItemsEvent) -> None:

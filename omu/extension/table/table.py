@@ -47,11 +47,11 @@ class Table[T: Keyable](abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def add_listener(self, listener: TableListener[T]) -> None:
+    def add_listener(self, listener: TableListener[T]) -> None:
         ...
 
     @abc.abstractmethod
-    async def remove_listener(self, listener: TableListener[T]) -> None:
+    def remove_listener(self, listener: TableListener[T]) -> None:
         ...
 
 
@@ -77,16 +77,25 @@ class _Keyable(Protocol):
         ...
 
 
-class TableType[T: _Keyable, D](abc.ABC):
-    @property
-    @abc.abstractmethod
-    def key(self) -> str:
-        ...
+class TableType[T: _Keyable, D]():
+    def __init__(
+        self, key: str, serializer: Serializer[T, D, T | None, D], use_db: bool
+    ):
+        self._key = key
+        self._serializer = serializer
+        self._use_db = use_db
 
     @property
-    @abc.abstractmethod
+    def key(self) -> str:
+        return self._key
+
+    @property
     def serializer(self) -> Serializer[T, D, T | None, D]:
-        ...
+        return self._serializer
+
+    @property
+    def use_db(self) -> bool:
+        return self._use_db
 
 
 def define_table_type[
@@ -95,17 +104,9 @@ def define_table_type[
     extension_type: ExtensionType,
     key: str,
     serializer: Serializer[T, D, T | None, D],
+    use_db: bool = False,
 ) -> TableType[T, D]:
-    class _TableType(TableType[T, D]):
-        @property
-        def key(self) -> str:
-            return f"{extension_type.key}:{key}"
-
-        @property
-        def serializer(self) -> Serializer[T, D, T | None, D]:
-            return serializer
-
-    return _TableType()
+    return TableType[T, D](f"{extension_type.key}:{key}", serializer, use_db)
 
 
 class KeyableModel[T](Protocol):
@@ -129,14 +130,10 @@ def define_table_type_model(
     _t: type[T],
     _d: type[D],
     deserialize: Callable[[D], T],
+    use_db: bool = False,
 ) -> TableType[T, D]:
-    class _TableType(TableType):
-        @property
-        def key(self) -> str:
-            return f"{extension_type.key}:{key}"
-
-        @property
-        def serializer(self) -> Serializer[T, D, T | None, D]:
-            return make_model_serializer(deserialize)
-
-    return _TableType()
+    return TableType[T, D](
+        f"{extension_type.key}:{key}",
+        make_model_serializer(deserialize),
+        use_db,
+    )

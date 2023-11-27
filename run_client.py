@@ -1,10 +1,10 @@
 import asyncio
 
-from omuchat import Client
 from omu.connection import Address, ConnectionListener, WebsocketConnection
 from omu.event.events import Ready
 from omu.extension.server.model.app import App
 from omu.helper import instance
+from omuchat import Client
 
 address = Address(
     host="localhost",
