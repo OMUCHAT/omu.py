@@ -11,7 +11,6 @@ from omu.endpoint import Endpoint
 from omu.endpoint.http_endpoint import HttpEndpoint
 from omu.event import EVENTS, EventJson, create_event_registry
 from omu.extension import create_extension_registry
-from omu.extension.chat.chat_extension import ChatExtensionType
 from omu.extension.server import ServerExtensionType
 from omu.extension.table.table_extension import TableExtensionType
 
@@ -41,9 +40,7 @@ class OmuClient(Client, ConnectionListener):
         self._extensions = extension_registry or create_extension_registry(self)
 
         self.events.register(EVENTS.Ready, EVENTS.Connect)
-        self.extensions.register(
-            TableExtensionType, ServerExtensionType, ChatExtensionType
-        )
+        self.extensions.register(TableExtensionType, ServerExtensionType)
 
         connection.add_listener(self)
         for listener in self._listeners:

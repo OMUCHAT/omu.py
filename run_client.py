@@ -1,9 +1,8 @@
 import asyncio
 
-from omu import Address, OmuClient, WebsocketConnection
-from omu.connection import ConnectionListener
+from omuchat import Client
+from omu.connection import Address, ConnectionListener, WebsocketConnection
 from omu.event.events import Ready
-from omu.extension.chat.chat_extension import ChatExtensionType
 from omu.extension.server.model.app import App
 from omu.helper import instance
 
@@ -12,14 +11,14 @@ address = Address(
     port=26423,
     secure=False,
 )
-connection = WebsocketConnection(address=address)
-app = App(
-    name="test",
-    group="test",
-    version="0.0.1",
+client = Client(
+    app=App(
+        name="test",
+        group="test",
+        version="0.0.1",
+    ),
+    connection=WebsocketConnection(address=address),
 )
-client = OmuClient(app, connection=connection)
-chat = client.extensions.get(ChatExtensionType)
 
 
 @client.connection.add_listener
