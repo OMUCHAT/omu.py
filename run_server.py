@@ -21,6 +21,9 @@ class MyListener(NetworkListener):
     async def on_connect(self, session: Session) -> None:
         print(f"Connected: {session.app.name}")
 
+    async def on_disconnected(self, session: Session) -> None:
+        print(f"Disconnected: {session.app.name}")
+
 
 if __name__ == "__main__":
     loop = asyncio.new_event_loop()

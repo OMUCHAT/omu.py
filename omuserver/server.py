@@ -30,19 +30,14 @@ class Server(abc.ABC):
     def network(self) -> Network:
         ...
 
-    # @property
-    # @abc.abstractmethod
-    # def endpoint(self) -> Endpoint:
-    #     ...
+    @property
+    @abc.abstractmethod
+    def extensions(self) -> Extensions:
+        ...
 
     # @property
     # @abc.abstractmethod
     # def events(self) -> EventRegistry:
-    #     ...
-
-    # @property
-    # @abc.abstractmethod
-    # def extensions(self) -> ExtensionRegistry:
     #     ...
 
     @property

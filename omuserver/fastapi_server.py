@@ -1,8 +1,9 @@
-from typing import Optional
+from typing import Dict, Optional
 
 from fastapi import FastAPI
 
 from omu.connection.address import Address
+from omuserver.extension.extension import ServerExtension
 from omuserver.network import FastAPINetwork, Network
 
 from .server import Server, ServerListener
@@ -19,6 +20,7 @@ class FastApiServer(Server):
         self._app = app or FastAPI()
         self._listeners = []
         self._network = network or FastAPINetwork(self, self._app)
+        self._extensions: Dict[str, ServerExtension] = {}
         self._running = False
 
     @property

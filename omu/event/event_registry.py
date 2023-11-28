@@ -31,9 +31,9 @@ class EventRegistry(abc.ABC, ConnectionListener):
         ...
 
     @abc.abstractmethod
-    def remove_listener[
-        T
-    ](self, event_type: EventType[T, Any], listener: Callable[[T], None]) -> None:
+    def remove_listener(
+        self, event_type: EventType, listener: Callable[[Any], None]
+    ) -> None:
         ...
 
 
@@ -75,9 +75,9 @@ def create_event_registry(client: Client) -> EventRegistry:
                 decorator(listener)
             return decorator
 
-        def remove_listener[
-            T
-        ](self, event_type: EventType[T, Any], listener: AsyncCallable[T],) -> None:
+        def remove_listener(
+            self, event_type: EventType, listener: AsyncCallable[Any]
+        ) -> None:
             if not self._events.get(event_type.type):
                 raise ValueError(f"Event type {event_type.type} not registered")
             self._events[event_type.type].listeners.remove(listener)

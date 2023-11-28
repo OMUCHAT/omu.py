@@ -1,27 +1,52 @@
 from __future__ import annotations
 
 import abc
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    from omu.connection import Address
-    from omu.interface.serializer import Serializer
+from omu.connection.address import Address
+from omu.extension.server.model.endpoint_info import EndpointInfo
+from omu.interface.serializable import Serializable, Serializer
 
 
-class EndpointType[ReqType, ResType, ReqData, ResData]():
+class EndpointType[Req, Res, ReqData, ResData](abc.ABC):
+    @property
+    @abc.abstractmethod
+    def info(self) -> EndpointInfo:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def request_serializer(self) -> Serializable[Req, ReqData]:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def response_serializer(self) -> Serializable[Res, ResData]:
+        ...
+
+
+class ClientEndpointType[Req, Res](EndpointType[Req, Res, Any, Any]):
     def __init__(
-        self, key: str, serializer: Serializer[ReqType, ReqData, ResType, ResData]
+        self,
+        info: EndpointInfo,
+        request_serializer: Serializable[Req, Any] | None = None,
+        response_serializer: Serializable[Res, Any] | None = None,
     ):
-        self._key = key
-        self._serializer = serializer
+        self._info = info
+        self._request_serializer = request_serializer or Serializer.noop()
+        self._response_serializer = response_serializer or Serializer.noop()
 
     @property
-    def key(self) -> str:
-        return self._key
+    def info(self) -> EndpointInfo:
+        return self._info
 
     @property
-    def serializer(self) -> Serializer[ReqType, ReqData, ResType, ResData]:
-        return self._serializer
+    def request_serializer(self) -> Serializable[Req, Any]:
+        return self._request_serializer
+
+    @property
+    def response_serializer(self) -> Serializable[Res, Any]:
+        return self._response_serializer
 
 
 class Endpoint(abc.ABC):

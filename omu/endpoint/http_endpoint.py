@@ -18,16 +18,16 @@ class HttpEndpoint(Endpoint):
         Req, Res
     ](self, type: EndpointType[Req, Res, Any, Any], data: Req) -> Res:
         endpoint_url = self._endpoint_url(type)
-        json = type.serializer.serialize(data)
+        json = type.request_serializer.serialize(data)
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.post(endpoint_url, json=json)
                 response.raise_for_status()
-                return type.serializer.deserialize(response.json())
+                return type.response_serializer.deserialize(response.json())
         except httpx.HTTPError as e:
-            raise Exception(f"Failed to execute endpoint {type.key}") from e
+            raise Exception(f"Failed to execute endpoint {type.info.key()}") from e
 
     def _endpoint_url(self, endpoint: EndpointType) -> str:
         protocol = "https" if self._address.secure else "http"
         host, port = self._address.host, self._address.port
-        return f"{protocol}://{host}:{port}/api/v1/{endpoint.key}"
+        return f"{protocol}://{host}:{port}/api/v1/{endpoint.info.key()}"

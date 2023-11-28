@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import abc
-from typing import Any
 
-from omu.interface.serializer import Serializer
+from omu.extension.extension import ExtensionType
+from omu.interface.serializable import Serializable
 
 
 class EventJson[T]:
@@ -27,18 +27,51 @@ class EventJson[T]:
             raise ValueError("Missing data field in event json")
         return cls(**json)  # type: ignore
 
+    def __str__(self) -> str:
+        return f"{self.type}:{self.data}"
 
-class EventType[T, D]():
-    def __init__(self, type: str, serializer: Serializer[T, D, Any | T, Any | D]):
+    def __repr__(self) -> str:
+        return f"{self.type}:{self.data}"
+
+
+class EventType[T, D](abc.ABC):
+    @property
+    @abc.abstractmethod
+    def type(self) -> str:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def serializer(self) -> Serializable[T, D]:
+        ...
+
+
+class BuiltinEventType[T, D](EventType[T, D]):
+    def __init__(self, type: str, serializer: Serializable[T, D]):
         self._type = type
         self._serializer = serializer
 
     @property
-    @abc.abstractmethod
     def type(self) -> str:
         return self._type
 
     @property
-    @abc.abstractmethod
-    def serializer(self) -> Serializer[T, D, Any | T, Any | D]:
+    def serializer(self) -> Serializable[T, D]:
+        return self._serializer
+
+
+class ExtensionEventType[T, D](EventType[T, D]):
+    def __init__(
+        self, extension_type: ExtensionType, type: str, serializer: Serializable[T, D]
+    ):
+        self._extension_type = extension_type
+        self._type = type
+        self._serializer = serializer
+
+    @property
+    def type(self) -> str:
+        return f"{self._extension_type.key}:{self._type}"
+
+    @property
+    def serializer(self) -> Serializable[T, D]:
         return self._serializer
