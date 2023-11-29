@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import abc
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Coroutine
 
 if TYPE_CHECKING:
     from omu.connection import Connection
@@ -20,6 +20,9 @@ class ClientListener:
 
     async def on_stopped(self) -> None:
         ...
+
+
+type Coro = Coroutine[Any, Any, None]
 
 
 class Client(abc.ABC):

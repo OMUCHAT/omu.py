@@ -10,7 +10,11 @@ if TYPE_CHECKING:
 
 class ExtensionRegistry(abc.ABC):
     @abc.abstractmethod
-    def register(self, *types: ExtensionType) -> None:
+    def register[T: Extension](self, type: ExtensionType[T]) -> T:
+        ...
+
+    @abc.abstractmethod
+    def register_all(self, *types: ExtensionType) -> None:
         ...
 
     @abc.abstractmethod
@@ -28,16 +32,21 @@ def create_extension_registry(client: Client) -> ExtensionRegistry:
             self._client = client
             self._extensions: Dict[str, Extension] = {}
 
-        def register(self, *types: ExtensionType) -> None:
+        def register[T: Extension](self, type: ExtensionType[T]) -> T:
+            if self.has(type):
+                raise ValueError(f"Extension type {type} already registered")
+            for dependency in type.dependencies():
+                if not self.has(dependency):
+                    raise ValueError(
+                        f"Extension type {type} depends on {dependency} which is not registered"
+                    )
+            extension = type.create(self._client)
+            self._extensions[type.key] = extension
+            return extension
+
+        def register_all(self, *types: ExtensionType) -> None:
             for type in types:
-                if self.has(type):
-                    raise ValueError(f"Extension type {type} already registered")
-                for dependency in type.dependencies():
-                    if not self.has(dependency):
-                        raise ValueError(
-                            f"Extension type {type} depends on {dependency} which is not registered"
-                        )
-                self._extensions[type.key] = type.create(self._client)
+                self.register(type)
 
         def get[Ext: Extension](self, extension_type: ExtensionType[Ext]) -> Ext:
             if not self.has(extension_type):

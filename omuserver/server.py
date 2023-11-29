@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import abc
-from typing import TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Dict
 
 if TYPE_CHECKING:
     from omu.connection import Address
+    from omuserver.event.event_registry import EventRegistry
+    from omuserver.extension.extension import Extension
     from omuserver.network.network import Network
 
 
@@ -32,13 +35,18 @@ class Server(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def extensions(self) -> Extensions:
+    def events(self) -> EventRegistry:
         ...
 
-    # @property
-    # @abc.abstractmethod
-    # def events(self) -> EventRegistry:
-    #     ...
+    @property
+    @abc.abstractmethod
+    def extensions(self) -> Dict[str, Extension]:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def data_path(self) -> Path:
+        ...
 
     @property
     @abc.abstractmethod

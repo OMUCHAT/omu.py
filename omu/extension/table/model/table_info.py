@@ -12,6 +12,8 @@ class TableInfoJson(TypedDict):
     name: str
     description: NotRequired[str] | None
     use_database: NotRequired[bool] | None
+    cache: NotRequired[bool] | None
+    cache_size: NotRequired[int] | None
 
 
 class TableInfo(Keyable, Model):
@@ -21,19 +23,38 @@ class TableInfo(Keyable, Model):
         name: str,
         description: str | None = None,
         use_database: bool | None = None,
+        cache: bool | None = None,
+        cache_size: int | None = None,
     ) -> None:
         self.extension = extension
         self.name = name
         self.description = description
         self.use_database = use_database
+        self.cache = cache
+        self.cache_size = cache_size
 
     @classmethod
     def from_json(cls, json: TableInfoJson) -> TableInfo:
         return TableInfo(**json)
 
     @classmethod
-    def create(cls, extension_type: ExtensionType, name: str) -> TableInfo:
-        return TableInfo(extension_type.key, name)
+    def create(
+        cls,
+        extension_type: ExtensionType,
+        name: str,
+        description: str | None = None,
+        use_database: bool | None = None,
+        cache: bool | None = None,
+        cache_size: int | None = None,
+    ) -> TableInfo:
+        return TableInfo(
+            extension=extension_type.key,
+            name=name,
+            description=description,
+            use_database=use_database,
+            cache=cache,
+            cache_size=cache_size,
+        )
 
     def key(self) -> str:
         return f"{self.extension}:{self.name}"
@@ -44,6 +65,8 @@ class TableInfo(Keyable, Model):
             name=self.name,
             description=self.description,
             use_database=self.use_database,
+            cache=self.cache,
+            cache_size=self.cache_size,
         )
 
     def __str__(self) -> str:

@@ -13,12 +13,12 @@ class Network(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def bind_endpoint[
+    def bind_endpoint[
         ReqData, ResData
     ](
         self,
         type: EndpointType[Any, Any, ReqData, ResData],
-        handler: Callable[[Session, ReqData], Awaitable[ResData]],
+        handler: Callable[[ReqData], Awaitable[ResData]],
     ) -> None:
         ...
 
@@ -32,7 +32,7 @@ class Network(abc.ABC):
 
 
 class NetworkListener:
-    async def on_connect(self, session: Session) -> None:
+    async def on_connected(self, session: Session) -> None:
         ...
 
     async def on_disconnected(self, session: Session) -> None:

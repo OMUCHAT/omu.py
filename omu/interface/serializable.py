@@ -21,6 +21,12 @@ class Serializer[T, D](Serializable[T, D]):
         self._serialize = serialize
         self._deserialize = deserialize
 
+    def serialize(self, item: T) -> D:
+        return self._serialize(item)
+
+    def deserialize(self, item: D) -> T:
+        return self._deserialize(item)
+
     @classmethod
     def noop(cls) -> Serializable[T, T]:
         return Serializer(lambda item: item, lambda item: item)
@@ -29,8 +35,26 @@ class Serializer[T, D](Serializable[T, D]):
     def model[M: Model, _D](cls, model: Callable[[_D], M]) -> Serializable[M, _D]:
         return Serializer(lambda item: item.json(), model)
 
-    def serialize(self, item: T) -> D:
-        return self._serialize(item)
+    @classmethod
+    def array[
+        _T, _D
+    ](cls, serializer: Serializable[_T, _D]) -> Serializable[list[_T], list[_D]]:
+        return Serializer(
+            lambda items: [serializer.serialize(item) for item in items],
+            lambda items: [serializer.deserialize(item) for item in items],
+        )
 
-    def deserialize(self, item: D) -> T:
-        return self._deserialize(item)
+    @classmethod
+    def map[
+        _T, _D
+    ](cls, serializer: Serializable[_T, _D]) -> Serializable[
+        dict[str, _T], dict[str, _D]
+    ]:
+        return Serializer(
+            lambda items: {
+                key: serializer.serialize(value) for key, value in items.items()
+            },
+            lambda items: {
+                key: serializer.deserialize(value) for key, value in items.items()
+            },
+        )

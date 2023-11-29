@@ -18,36 +18,37 @@ class FastAPINetwork(Network, ServerListener, SessionListener):
         self._server = server
         self._app = app
         self._listeners: List[NetworkListener] = []
-        self._endpoints: Dict[str, Callable[[Session, Any], Awaitable[Any]]] = {}
+        self._endpoints: Dict[str, Callable[[Any], Awaitable[Any]]] = {}
         self._sessions: Dict[str, WebSocketSession] = {}
         self._app.websocket_route("/api/v1/ws")(self._websocket_handler)
         server.add_listener(self)
 
-    async def bind_endpoint[
+    def bind_endpoint[
         ReqData, ResData
     ](
         self,
         type: EndpointType[Any, Any, ReqData, ResData],
-        handler: Callable[[Session, ReqData], Awaitable[ResData]],
+        handler: Callable[[ReqData], Awaitable[ResData]],
     ) -> None:
-        if type.key in self._endpoints:
-            raise ValueError(f"Endpoint {type.key} already bound")
-        self._endpoints[type.key] = handler
-        self._app.post(f"/api/v1/{type.key}")(self._endpoint_handler(type))
+        key = type.info.key()
+        if key in self._endpoints:
+            raise ValueError(f"Endpoint {key} already bound")
+        self._endpoints[key] = handler
+        self._app.post(f"/api/v1/{key}")(self._wrap_handler(type, handler))
 
-    def _endpoint_handler(
-        self, type: EndpointType[Any, Any, Any, Any]
-    ) -> Callable[[Any], Awaitable[Any]]:
-        async def _handler(data: Any) -> Any:
-            session = self._sessions[data["session"]]
-            if session is None:
-                raise ValueError(f"Session {data['session']} not found")
-            handler = self._endpoints[type.key]
-            if handler is None:
-                raise ValueError(f"Endpoint {type.key} not bound")
-            return await handler(session, data["data"])
+    def _wrap_handler[
+        ReqData, ResData
+    ](
+        self,
+        type: EndpointType[Any, Any, ReqData, ResData],
+        handler: Callable[[ReqData], Awaitable[ResData]],
+    ) -> Callable[[ReqData], Awaitable[ResData]]:
+        async def _handler(req_data: dict) -> Any:
+            req = type.request_serializer.deserialize(req_data)  # type: ignore
+            res = await handler(req)
+            return type.response_serializer.serialize(res)
 
-        return _handler
+        return _handler  # type: ignore
 
     async def _websocket_handler(self, websocket: WebSocket) -> None:
         await websocket.accept()
@@ -57,7 +58,7 @@ class FastAPINetwork(Network, ServerListener, SessionListener):
         self._sessions[session.app.key()] = session
         session.add_listener(self)
         for listener in self._listeners:
-            await listener.on_connect(session)
+            await listener.on_connected(session)
         await session.start()
 
     async def on_disconnected(self, session: Session) -> None:

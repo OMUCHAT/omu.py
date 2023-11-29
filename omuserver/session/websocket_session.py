@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import List
+from typing import Any, List
 
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
-from omu.event.event import EventJson
+from omu.event.event import EventJson, EventType
 from omu.extension.server.model.app import App, AppJson
 from omuserver.session.session import Session, SessionListener
 
@@ -32,14 +32,17 @@ class WebSocketSession(Session):
         return EventJson(**await self.socket.receive_json())
 
     async def start(self) -> None:
-        while True:
-            try:
-                data = await self.socket.receive_json()
-                print(data)
-            except WebSocketDisconnect:
-                break
-            finally:
-                await self.disconnect()
+        try:
+            while True:
+                try:
+                    data = await self.socket.receive_json()
+                    event = EventJson(**data)
+                    for listener in self._listeners:
+                        await listener.on_event(self, event)
+                except WebSocketDisconnect:
+                    break
+        finally:
+            await self.disconnect()
 
     async def disconnect(self) -> None:
         try:
@@ -49,8 +52,13 @@ class WebSocketSession(Session):
         for listener in self._listeners:
             await listener.on_disconnected(self)
 
-    async def send(self, event: EventJson) -> None:
-        await self.socket.send_json(event)
+    async def send[T](self, type: EventType[Any, T], data: T) -> None:
+        await self.socket.send_json(
+            {
+                "type": type.type,
+                "data": type.serializer.serialize(data),
+            }
+        )
 
     def add_listener(self, listener: SessionListener) -> None:
         self._listeners.append(listener)

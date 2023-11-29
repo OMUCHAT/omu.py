@@ -5,8 +5,6 @@ from typing import TYPE_CHECKING, Any, Callable, Coroutine, Dict, List
 
 from loguru import logger
 
-from omu.connection import ConnectionListener
-
 if TYPE_CHECKING:
     from omu.client import Client
     from omu.event import EventJson, EventType
@@ -15,7 +13,7 @@ if TYPE_CHECKING:
 type AsyncCallable[T] = Callable[[T], Coroutine[Any, Any, None]]
 
 
-class EventRegistry(abc.ABC, ConnectionListener):
+class EventRegistry(abc.ABC):
     @abc.abstractmethod
     def register(self, *types: EventType) -> None:
         ...

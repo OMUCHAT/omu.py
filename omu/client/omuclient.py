@@ -40,7 +40,7 @@ class OmuClient(Client, ConnectionListener):
         self._extensions = extension_registry or create_extension_registry(self)
 
         self.events.register(EVENTS.Ready, EVENTS.Connect)
-        self.extensions.register(TableExtensionType, ServerExtensionType)
+        self.extensions.register_all(TableExtensionType, ServerExtensionType)
 
         connection.add_listener(self)
         for listener in self._listeners:

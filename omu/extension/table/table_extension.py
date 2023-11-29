@@ -1,12 +1,14 @@
 from typing import Any, AsyncIterator, Dict, List, TypedDict
 
 from omu.client import Client
+from omu.connection.connection import ConnectionListener
 from omu.endpoint.endpoint import ClientEndpointType
 from omu.event.event import ExtensionEventType
 from omu.extension import Extension, define_extension_type
 from omu.extension.server.model.endpoint_info import EndpointInfo
 from omu.extension.server.model.extension_info import ExtensionInfo
 from omu.extension.table import Table, TableListener, TableType
+from omu.extension.table.model.table_info import TableInfo, TableInfoJson
 from omu.interface.keyable import Keyable
 from omu.interface.serializable import Serializer
 
@@ -16,6 +18,7 @@ class TableExtension(Extension):
         self._client = client
         self._tables: Dict[str, Table] = {}
         client.events.register(
+            TableRegisterEvent,
             TableItemAddEvent,
             TableItemSetEvent,
             TableItemRemoveEvent,
@@ -37,6 +40,9 @@ class TableExtension(Extension):
 
 TableExtensionType = define_extension_type(
     ExtensionInfo.create("table"), lambda client: TableExtension(client), lambda: []
+)
+TableRegisterEvent = ExtensionEventType[TableInfo, TableInfoJson](
+    TableExtensionType, "register", Serializer.model(TableInfo.from_json)
 )
 
 
@@ -86,7 +92,7 @@ TableItemSizeEndpoint = ClientEndpointType[TableReq, int](
 )
 
 
-class TableImpl[T: Keyable](Table[T]):
+class TableImpl[T: Keyable](Table[T], ConnectionListener):
     def __init__(self, client: Client, type: TableType[T, Any]):
         self._client = client
         self._type = type
@@ -98,10 +104,14 @@ class TableImpl[T: Keyable](Table[T]):
         client.events.add_listener(TableItemSetEvent, self._on_item_set)
         client.events.add_listener(TableItemRemoveEvent, self._on_item_remove)
         client.events.add_listener(TableItemClearEvent, self._on_item_clear)
+        client.connection.add_listener(self)
 
     @property
     def cache(self) -> Dict[str, T]:
         return self._cache
+
+    async def on_connected(self) -> None:
+        await self._client.send(TableRegisterEvent, self._type.info)
 
     async def get(self, key: str) -> T | None:
         if key in self._cache:
