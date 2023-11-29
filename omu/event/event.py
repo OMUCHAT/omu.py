@@ -45,6 +45,12 @@ class EventType[T, D](abc.ABC):
     def serializer(self) -> Serializable[T, D]:
         ...
 
+    def __str__(self) -> str:
+        return self.type
+
+    def __repr__(self) -> str:
+        return self.type
+
 
 class BuiltinEventType[T, D](EventType[T, D]):
     def __init__(self, type: str, serializer: Serializable[T, D]):

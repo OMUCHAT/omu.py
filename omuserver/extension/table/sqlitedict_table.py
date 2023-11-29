@@ -13,38 +13,22 @@ from omu.extension.table.table_extension import (
     TableReq,
 )
 from omu.interface.serializable import Serializable
+from omuserver.extension.table.session_table_handler import SessionTableHandler
+from omuserver.server import Server
 from omuserver.session.session import Session, SessionListener
 
 from .table_server import TableListener, TableServer
 
 
-class SessionTableHandler(TableListener):
-    def __init__(self, info: TableInfo, session: Session):
-        self._info = info
-        self._session = session
-
-    async def on_add(self, items: Dict[str, Any]) -> None:
-        await self._session.send(
-            TableItemAddEvent, TableItemsReq(items=items, type=self._info.key())
-        )
-
-    async def on_set(self, items: Dict[str, Any]) -> None:
-        await self._session.send(
-            TableItemSetEvent, TableItemsReq(items=items, type=self._info.key())
-        )
-
-    async def on_remove(self, items: Dict[str, Any]) -> None:
-        await self._session.send(
-            TableItemRemoveEvent,
-            TableItemsReq(items=items, type=self._info.key()),
-        )
-
-    async def on_clear(self) -> None:
-        await self._session.send(TableItemClearEvent, TableReq(type=self._info.key()))
-
-
 class SqlitedictTable[T](TableServer[T], SessionListener):
-    def __init__(self, path: Path, info: TableInfo, serializer: Serializable[T, Any]):
+    def __init__(
+        self,
+        server: Server,
+        path: Path,
+        info: TableInfo,
+        serializer: Serializable[T, Any],
+    ):
+        self._server = server
         self._path = path
         self._info = info
         self._serializer = serializer
@@ -54,6 +38,54 @@ class SqlitedictTable[T](TableServer[T], SessionListener):
         self._cache_size = info.cache_size or 1000
         self._listeners: List[TableListener] = []
         self._handlers: Dict[Session, SessionTableHandler] = {}
+        server.events.add_listener(
+            TableItemAddEvent,
+            self._on_table_item_add,
+        )
+        server.events.add_listener(
+            TableItemSetEvent,
+            self._on_table_item_set,
+        )
+        server.events.add_listener(
+            TableItemRemoveEvent,
+            self._on_table_item_remove,
+        )
+        server.events.add_listener(
+            TableItemClearEvent,
+            self._on_table_item_clear,
+        )
+
+    async def _on_table_item_add(self, session: Session, items: TableItemsReq) -> None:
+        if items["type"] != self._info.key():
+            return
+        await self.add(
+            {
+                key: self._serializer.deserialize(item)
+                for key, item in items["items"].items()
+            }
+        )
+
+    async def _on_table_item_set(self, session: Session, items: TableItemsReq) -> None:
+        if items["type"] != self._info.key():
+            return
+        await self.set(
+            {
+                key: self._serializer.deserialize(item)
+                for key, item in items["items"].items()
+            }
+        )
+
+    async def _on_table_item_remove(
+        self, session: Session, items: TableItemsReq
+    ) -> None:
+        if items["type"] != self._info.key():
+            return
+        await self.remove(list(items["items"].keys()))
+
+    async def _on_table_item_clear(self, session: Session, req: TableReq) -> None:
+        if req["type"] != self._info.key():
+            return
+        await self.clear()
 
     @property
     def cache(self) -> Dict[str, T]:

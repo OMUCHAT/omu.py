@@ -38,7 +38,7 @@ class TableExtensionServer(Extension):
         if table is None:
             return {}
         items = await table.fetch(req["limit"], req.get("cursor"))
-        return {key: table.serializer.serialize(item) for key, item in items}
+        return {key: table.serializer.serialize(item) for key, item in items.items()}
 
     async def _on_table_register(self, session: Session, info: TableInfo) -> None:
         if info.key() in self._tables:
@@ -47,10 +47,11 @@ class TableExtensionServer(Extension):
             return
         path = self._server.data_path / "tables" / info.key()
         if info.use_database:
-            table = SqlitedictTable(path, info, Serializer.noop())
+            table = SqlitedictTable(self._server, path, info, Serializer.noop())
         else:
-            table = DictTable(path, info, Serializer.noop())
+            table = DictTable(self._server, path, info, Serializer.noop())
         self._tables[info.key()] = table
+        table.attach_session(session)
 
     def initialize(self) -> None:
         pass

@@ -2,18 +2,75 @@ from pathlib import Path
 from typing import AsyncIterator, Dict
 
 from omu.extension.table.model.table_info import TableInfo
+from omu.extension.table.table_extension import (
+    TableItemAddEvent,
+    TableItemClearEvent,
+    TableItemRemoveEvent,
+    TableItemSetEvent,
+    TableItemsReq,
+    TableReq,
+)
 from omu.interface.serializable import Serializable
+from omuserver.extension.table.session_table_handler import SessionTableHandler
+from omuserver.server import Server
+from omuserver.session.session import Session, SessionListener
 
 from .table_server import TableListener, TableServer
 
 
-class DictTable[T](TableServer[T]):
-    def __init__(self, path: Path, info: TableInfo, serializer: Serializable[T, dict]):
+class DictTable[T](TableServer[T], SessionListener):
+    def __init__(
+        self,
+        server: Server,
+        path: Path,
+        info: TableInfo,
+        serializer: Serializable[T, dict],
+    ):
+        self._server = server
         self._path = path
         self._info = info
         self._serializer = serializer
         self._cache: Dict[str, T] = {}
         self._listeners: list[TableListener[T]] = []
+        self._handlers: Dict[Session, SessionTableHandler] = {}
+        server.events.add_listener(
+            TableItemAddEvent,
+            self._on_table_item_add,
+        )
+        server.events.add_listener(
+            TableItemSetEvent,
+            self._on_table_item_set,
+        )
+        server.events.add_listener(
+            TableItemRemoveEvent,
+            self._on_table_item_remove,
+        )
+        server.events.add_listener(
+            TableItemClearEvent,
+            self._on_table_item_clear,
+        )
+
+    async def _on_table_item_add(self, session: Session, items: TableItemsReq) -> None:
+        if items["type"] != self._info.key():
+            return
+        await self.add(items["items"])
+
+    async def _on_table_item_set(self, session: Session, items: TableItemsReq) -> None:
+        if items["type"] != self._info.key():
+            return
+        await self.set(items["items"])
+
+    async def _on_table_item_remove(
+        self, session: Session, items: TableItemsReq
+    ) -> None:
+        if items["type"] != self._info.key():
+            return
+        await self.remove(list(items["items"].keys()))
+
+    async def _on_table_item_clear(self, session: Session, req: TableReq) -> None:
+        if req["type"] != self._info.key():
+            return
+        await self.clear()
 
     @property
     def cache(self) -> Dict[str, T]:
@@ -22,6 +79,16 @@ class DictTable[T](TableServer[T]):
     @property
     def serializer(self) -> Serializable[T, dict]:
         return self._serializer
+
+    def attach_session(self, session: Session) -> None:
+        handler = SessionTableHandler(self._info, session)
+        self._handlers[session] = handler
+        self.add_listener(handler)
+        session.add_listener(self)
+
+    async def on_disconnected(self, session: Session) -> None:
+        handler = self._handlers.pop(session)
+        self.remove_listener(handler)
 
     async def get(self, key: str) -> T | None:
         return self._cache.get(key, None)
