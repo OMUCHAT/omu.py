@@ -35,6 +35,7 @@ class OmuClient(Client, ConnectionListener):
         self._listeners: List[ClientListener] = []
         self._app = app
         self._connection = connection
+        connection.add_listener(self)
         self._endpoint = endpoint or HttpEndpoint(connection.address)
         self._events = event_registry or create_event_registry(self)
         self._extensions = extension_registry or create_extension_registry(self)
@@ -42,7 +43,6 @@ class OmuClient(Client, ConnectionListener):
         self.events.register(EVENTS.Ready, EVENTS.Connect)
         self.extensions.register_all(TableExtensionType, ServerExtensionType)
 
-        connection.add_listener(self)
         for listener in self._listeners:
             asyncio.run(listener.on_initialized())
 

@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, Any, Callable, Coroutine, Dict, List
 
 from loguru import logger
 
+from omu.connection.connection import ConnectionListener
+
 if TYPE_CHECKING:
     from omu.client import Client
     from omu.event import EventJson, EventType
@@ -46,7 +48,7 @@ class EventEntry[T, D]:
 
 
 def create_event_registry(client: Client) -> EventRegistry:
-    class EventRegistryImpl(EventRegistry):
+    class EventRegistryImpl(EventRegistry, ConnectionListener):
         def __init__(self):
             self._events: Dict[str, EventEntry] = {}
 

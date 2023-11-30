@@ -1,5 +1,5 @@
 [project]
-name = "omuchat"
+name = "omu.py"
 version = "0.1.0"
 description = "Add your description here"
 authors = [{ name = "am230", email = "111672334+am230@users.noreply.github.com" }]
