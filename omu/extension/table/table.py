@@ -59,7 +59,7 @@ class TableListener[T: Keyable]:
     async def on_add(self, items: Dict[str, T]) -> None:
         ...
 
-    async def on_set(self, items: Dict[str, T]) -> None:
+    async def on_update(self, items: Dict[str, T]) -> None:
         ...
 
     async def on_remove(self, items: Dict[str, T]) -> None:

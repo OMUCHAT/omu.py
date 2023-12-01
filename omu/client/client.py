@@ -52,6 +52,10 @@ class Client(abc.ABC):
         ...
 
     @abc.abstractmethod
+    def run(self) -> None:
+        ...
+
+    @abc.abstractmethod
     async def start(self) -> None:
         ...
 

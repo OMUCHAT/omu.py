@@ -20,7 +20,7 @@ class TableExtension(Extension):
         client.events.register(
             TableRegisterEvent,
             TableItemAddEvent,
-            TableItemSetEvent,
+            TableItemUpdateEvent,
             TableItemRemoveEvent,
             TableItemClearEvent,
         )
@@ -63,8 +63,8 @@ class TableKeysReq(TypedDict):
 TableItemAddEvent = ExtensionEventType[TableItemsReq, TableItemsReq](
     TableExtensionType, "item_add", Serializer.noop()
 )
-TableItemSetEvent = ExtensionEventType[TableItemsReq, TableItemsReq](
-    TableExtensionType, "item_set", Serializer.noop()
+TableItemUpdateEvent = ExtensionEventType[TableItemsReq, TableItemsReq](
+    TableExtensionType, "item_update", Serializer.noop()
 )
 TableItemRemoveEvent = ExtensionEventType[TableItemsReq, TableItemsReq](
     TableExtensionType, "item_remove", Serializer.noop()
@@ -101,7 +101,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
         self.key = type.info.key()
 
         client.events.add_listener(TableItemAddEvent, self._on_item_add)
-        client.events.add_listener(TableItemSetEvent, self._on_item_set)
+        client.events.add_listener(TableItemUpdateEvent, self._on_item_update)
         client.events.add_listener(TableItemRemoveEvent, self._on_item_remove)
         client.events.add_listener(TableItemClearEvent, self._on_item_clear)
         client.connection.add_listener(self)
@@ -134,7 +134,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
     async def set(self, *items: T) -> None:
         data = {item.key(): self._type.serializer.serialize(item) for item in items}
         await self._client.send(
-            TableItemSetEvent, TableItemsReq(type=self.key, items=data)
+            TableItemUpdateEvent, TableItemsReq(type=self.key, items=data)
         )
 
     async def remove(self, *items: T) -> None:
@@ -186,13 +186,13 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
             await listener.on_add(items)
             await listener.on_cache_update(self._cache)
 
-    async def _on_item_set(self, event: TableItemsReq) -> None:
+    async def _on_item_update(self, event: TableItemsReq) -> None:
         if event["type"] != self.key:
             return
         items = self._parse_items(event["items"])
         self._cache.update(items)
         for listener in self._listeners:
-            await listener.on_set(items)
+            await listener.on_update(items)
             await listener.on_cache_update(self._cache)
 
     async def _on_item_remove(self, event: TableItemsReq) -> None:

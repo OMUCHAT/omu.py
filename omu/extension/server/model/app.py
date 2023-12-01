@@ -14,6 +14,7 @@ class AppJson(TypedDict):
     authors: NotRequired[List[str]] | None
     site_url: NotRequired[str] | None
     repository_url: NotRequired[str] | None
+    license: NotRequired[str] | None
     image_url: NotRequired[str] | None
 
 
@@ -27,6 +28,7 @@ class App(Keyable, Model[AppJson]):
         authors: List[str] | None = None,
         site_url: str | None = None,
         repository_url: str | None = None,
+        license: str | None = None,
         image_url: str | None = None,
     ) -> None:
         self.name = name
@@ -36,6 +38,7 @@ class App(Keyable, Model[AppJson]):
         self.authors = authors
         self.site_url = site_url
         self.repository_url = repository_url
+        self.license = license
         self.image_url = image_url
 
     @classmethod
@@ -54,6 +57,7 @@ class App(Keyable, Model[AppJson]):
             "authors": self.authors,
             "site_url": self.site_url,
             "repository_url": self.repository_url,
+            "license": self.license,
             "image_url": self.image_url,
         }
 

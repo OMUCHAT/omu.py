@@ -6,7 +6,8 @@ from typing import TYPE_CHECKING, Any, List
 from loguru import logger
 
 from omu.client import Client
-from omu.connection import ConnectionListener
+from omu.connection import ConnectionListener, WebsocketConnection
+from omu.connection.address import Address
 from omu.endpoint import Endpoint
 from omu.endpoint.http_endpoint import HttpEndpoint
 from omu.event import EVENTS, EventJson, create_event_registry
@@ -26,7 +27,8 @@ class OmuClient(Client, ConnectionListener):
     def __init__(
         self,
         app: App,
-        connection: Connection,
+        address: Address,
+        connection: Connection | None = None,
         endpoint: Endpoint | None = None,
         event_registry: EventRegistry | None = None,
         extension_registry: ExtensionRegistry | None = None,
@@ -34,9 +36,9 @@ class OmuClient(Client, ConnectionListener):
         self._running = False
         self._listeners: List[ClientListener] = []
         self._app = app
-        self._connection = connection
-        connection.add_listener(self)
-        self._endpoint = endpoint or HttpEndpoint(connection.address)
+        self._connection = connection or WebsocketConnection(address)
+        self._connection.add_listener(self)
+        self._endpoint = endpoint or HttpEndpoint(address)
         self._events = event_registry or create_event_registry(self)
         self._extensions = extension_registry or create_extension_registry(self)
 
@@ -81,13 +83,22 @@ class OmuClient(Client, ConnectionListener):
             EventJson(type=event.type, data=event.serializer.serialize(data))
         )
 
+    def run(self) -> None:
+        loop = asyncio.get_event_loop()
+        try:
+            loop.create_task(self.start())
+            loop.run_forever()
+        finally:
+            loop.close()
+            asyncio.run(self.stop())
+
     async def start(self) -> None:
         if self._running:
             raise RuntimeError("Already running")
         self._running = True
-        await self._connection.connect()
         for listener in self._listeners:
             await listener.on_started()
+        await self._connection.connect()
 
     async def stop(self) -> None:
         if not self._running:

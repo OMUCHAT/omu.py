@@ -34,7 +34,7 @@ class WebsocketConnection(Connection):
         await self.disconnect()
 
         try:
-            self._socket = await client.connect(self._ws_endpoint)
+            self._socket = await client.connect(self._ws_endpoint, ping_interval=None)
             self._socket.loop.create_task(self._listen())
             self._connected = True
             for listener in self._listeners:

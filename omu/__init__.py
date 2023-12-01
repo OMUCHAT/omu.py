@@ -6,6 +6,7 @@ from .connection import (
     ConnectionStatus,
     WebsocketConnection,
 )
+from .extension.server import App
 
 __all__ = [
     "Address",
@@ -14,4 +15,5 @@ __all__ = [
     "ConnectionListener",
     "WebsocketConnection",
     "OmuClient",
+    "App",
 ]
