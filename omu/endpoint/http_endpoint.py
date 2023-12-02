@@ -1,6 +1,6 @@
 from typing import Any
 
-import aiohttp
+import httpx
 
 from omu.connection import Address
 from omu.endpoint import Endpoint, EndpointType
@@ -14,17 +14,17 @@ class HttpEndpoint(Endpoint):
     def address(self) -> Address:
         return self._address
 
-    async def execute[Req, Res](
-        self, type: EndpointType[Req, Res, Any, Any], data: Req
-    ) -> Res:
+    async def execute[
+        Req, Res
+    ](self, type: EndpointType[Req, Res, Any, Any], data: Req) -> Res:
         endpoint_url = self._endpoint_url(type)
         json = type.request_serializer.serialize(data)
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(endpoint_url, json=json) as response:
-                    response.raise_for_status()
-                    return type.response_serializer.deserialize(await response.json())
-        except aiohttp.ClientError as e:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(endpoint_url, json=json)
+                response.raise_for_status()
+                return type.response_serializer.deserialize(response.json())
+        except httpx.HTTPError as e:
             raise Exception(f"Failed to execute endpoint {type.info.key()}") from e
 
     def _endpoint_url(self, endpoint: EndpointType) -> str:
