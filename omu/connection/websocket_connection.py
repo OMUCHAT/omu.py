@@ -25,7 +25,7 @@ class WebsocketConnection(Connection):
     @property
     def _ws_endpoint(self) -> str:
         protocol = "wss" if self._address.secure else "ws"
-        return f"{protocol}://{self._address.host}:{self._address.port}/api/v1/ws"
+        return f"{protocol}://{self._address.host}:{self._address.port}"
 
     async def connect(self) -> None:
         if self._socket and not self._socket.closed:
@@ -47,16 +47,19 @@ class WebsocketConnection(Connection):
                 await listener.on_status_changed("disconnected")
 
     async def _listen(self) -> None:
-        while True:
-            if not self._socket:
-                break
-            try:
-                data = await self._socket.recv()
-                event = EventJson(**json.loads(data))
-                for listener in self._listeners:
-                    await listener.on_event(event)
-            except exceptions.ConnectionClosed:
-                break
+        try:
+            while True:
+                if not self._socket:
+                    break
+                try:
+                    data = await self._socket.recv()
+                    event = EventJson(**json.loads(data))
+                    for listener in self._listeners:
+                        await listener.on_event(event)
+                except exceptions.ConnectionClosed:
+                    break
+        finally:
+            await self.disconnect()
 
     async def disconnect(self) -> None:
         if not self._socket:
