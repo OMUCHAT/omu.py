@@ -5,10 +5,12 @@ from typing import TYPE_CHECKING, Any, Coroutine
 
 if TYPE_CHECKING:
     from omu.connection import Connection
-    from omu.endpoint import Endpoint
     from omu.event import EventType
     from omu.event.event_registry import EventRegistry
     from omu.extension import ExtensionRegistry
+    from omu.extension.endpoint.endpoint_extension import EndpointExtension
+    from omu.extension.server.server_extension import ServerExtension
+    from omu.extension.table.table_extension import TableExtension
 
 
 class ClientListener:
@@ -33,17 +35,27 @@ class Client(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def endpoint(self) -> Endpoint:
-        ...
-
-    @property
-    @abc.abstractmethod
     def events(self) -> EventRegistry:
         ...
 
     @property
     @abc.abstractmethod
     def extensions(self) -> ExtensionRegistry:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def endpoints(self) -> EndpointExtension:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def tables(self) -> TableExtension:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def server(self) -> ServerExtension:
         ...
 
     @property

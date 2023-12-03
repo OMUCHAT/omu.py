@@ -4,8 +4,7 @@ import abc
 from typing import AsyncIterator, Dict
 
 from omu.extension.table.model.table_info import TableInfo
-from omu.interface.keyable import Keyable
-from omu.interface.serializable import Serializable
+from omu.interface import Keyable, Serializable
 
 
 class Table[T: Keyable](abc.ABC):

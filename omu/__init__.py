@@ -1,11 +1,5 @@
 from .client import OmuClient
-from .connection import (
-    Address,
-    Connection,
-    ConnectionListener,
-    ConnectionStatus,
-    WebsocketConnection,
-)
+from .connection import Address, Connection, ConnectionListener, ConnectionStatus
 from .extension.server import App
 
 __all__ = [
@@ -13,7 +7,6 @@ __all__ = [
     "Connection",
     "ConnectionStatus",
     "ConnectionListener",
-    "WebsocketConnection",
     "OmuClient",
     "App",
 ]

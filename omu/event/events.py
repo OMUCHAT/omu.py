@@ -1,6 +1,6 @@
 from omu.event.event import BuiltinEventType
 from omu.extension.server.model.app import App, AppJson
-from omu.interface.serializable import Serializer
+from omu.interface import Serializer
 
 Connect = BuiltinEventType[App, AppJson](
     "Connect",

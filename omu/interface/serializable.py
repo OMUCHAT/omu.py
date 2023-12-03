@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import abc
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
-from omu.interface.model import Model
+if TYPE_CHECKING:
+    from omu.interface import Model
 
 
 class Serializable[T, D](abc.ABC):
@@ -36,20 +37,18 @@ class Serializer[T, D](Serializable[T, D]):
         return Serializer(lambda item: item.json(), model)
 
     @classmethod
-    def array[
-        _T, _D
-    ](cls, serializer: Serializable[_T, _D]) -> Serializable[list[_T], list[_D]]:
+    def array[_T, _D](
+        cls, serializer: Serializable[_T, _D]
+    ) -> Serializable[list[_T], list[_D]]:
         return Serializer(
             lambda items: [serializer.serialize(item) for item in items],
             lambda items: [serializer.deserialize(item) for item in items],
         )
 
     @classmethod
-    def map[
-        _T, _D
-    ](cls, serializer: Serializable[_T, _D]) -> Serializable[
-        dict[str, _T], dict[str, _D]
-    ]:
+    def map[_T, _D](
+        cls, serializer: Serializable[_T, _D]
+    ) -> Serializable[dict[str, _T], dict[str, _D]]:
         return Serializer(
             lambda items: {
                 key: serializer.serialize(value) for key, value in items.items()

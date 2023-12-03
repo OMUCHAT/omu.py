@@ -1,22 +1,22 @@
 from typing import Any, AsyncIterator, Dict, List, TypedDict
 
-from omu.client import Client
-from omu.connection.connection import ConnectionListener
-from omu.endpoint.endpoint import ClientEndpointType
+from omu.client.client import Client
+from omu.connection import ConnectionListener
 from omu.event.event import ExtensionEventType
-from omu.extension import Extension, define_extension_type
-from omu.extension.server.model.endpoint_info import EndpointInfo
+from omu.extension.endpoint.endpoint import ClientEndpointType
+from omu.extension.endpoint.model.endpoint_info import EndpointInfo
+from omu.extension.extension import Extension, define_extension_type
 from omu.extension.server.model.extension_info import ExtensionInfo
-from omu.extension.table import Table, TableListener, TableType
 from omu.extension.table.model.table_info import TableInfo, TableInfoJson
-from omu.interface.keyable import Keyable
-from omu.interface.serializable import Serializer
+from omu.extension.table.table import ModelTableType, Table, TableListener, TableType
+from omu.interface import Keyable, Serializer
 
 
 class TableExtension(Extension):
     def __init__(self, client: Client):
         self._client = client
         self._tables: Dict[str, Table] = {}
+        self.tables = self.register(TablesTableType)
         client.events.register(
             TableRegisterEvent,
             TableItemAddEvent,
@@ -90,6 +90,10 @@ TableItemFetchEndpoint = ClientEndpointType[TableFetchReq, Dict[str, Any]](
 TableItemSizeEndpoint = ClientEndpointType[TableReq, int](
     EndpointInfo.create(TableExtensionType, "item_size"), Serializer.noop()
 )
+TablesTableType = ModelTableType[TableInfo, TableInfoJson](
+    TableInfo.create(TableExtensionType, "tables"),
+    Serializer.model(lambda data: TableInfo.from_json(data)),
+)
 
 
 class TableImpl[T: Keyable](Table[T], ConnectionListener):
@@ -116,7 +120,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
     async def get(self, key: str) -> T | None:
         if key in self._cache:
             return self._cache[key]
-        res = await self._client.endpoint.execute(
+        res = await self._client.endpoints.call(
             TableItemGetEndpoint, TableKeysReq(type=self.key, items=[key])
         )
         items = self._parse_items(res["items"])
@@ -147,7 +151,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
         await self._client.send(TableItemClearEvent, TableReq(type=self.key))
 
     async def fetch(self, limit: int = 100, cursor: str | None = None) -> Dict[str, T]:
-        res = await self._client.endpoint.execute(
+        res = await self._client.endpoints.call(
             TableItemFetchEndpoint,
             TableFetchReq(type=self.key, limit=limit, cursor=cursor),
         )
@@ -166,7 +170,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
             *_, cursor = items.keys()
 
     async def size(self) -> int:
-        res = await self._client.endpoint.execute(
+        res = await self._client.endpoints.call(
             TableItemSizeEndpoint, TableReq(type=self.key)
         )
         return res

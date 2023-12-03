@@ -3,7 +3,7 @@ from __future__ import annotations
 import abc
 
 from omu.extension.extension import ExtensionType
-from omu.interface.serializable import Serializable
+from omu.interface import Serializable
 
 
 class EventJson[T]:

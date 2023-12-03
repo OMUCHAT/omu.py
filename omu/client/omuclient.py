@@ -6,14 +6,18 @@ from typing import TYPE_CHECKING, Any, List
 from loguru import logger
 
 from omu.client import Client
-from omu.connection import ConnectionListener, WebsocketConnection
+from omu.connection import ConnectionListener
 from omu.connection.address import Address
-from omu.endpoint import Endpoint
-from omu.endpoint.http_endpoint import HttpEndpoint
+from omu.connection.websocket_connection import WebsocketConnection
 from omu.event import EVENTS, EventJson, create_event_registry
 from omu.extension import create_extension_registry
+from omu.extension.endpoint.endpoint_extension import (
+    EndpointExtension,
+    EndpointExtensionType,
+)
 from omu.extension.server import ServerExtensionType
-from omu.extension.table.table_extension import TableExtensionType
+from omu.extension.server.server_extension import ServerExtension
+from omu.extension.table.table_extension import TableExtension, TableExtensionType
 
 if TYPE_CHECKING:
     from omu.client import ClientListener
@@ -29,7 +33,6 @@ class OmuClient(Client, ConnectionListener):
         app: App,
         address: Address,
         connection: Connection | None = None,
-        endpoint: Endpoint | None = None,
         event_registry: EventRegistry | None = None,
         extension_registry: ExtensionRegistry | None = None,
     ):
@@ -38,12 +41,13 @@ class OmuClient(Client, ConnectionListener):
         self._app = app
         self._connection = connection or WebsocketConnection(address)
         self._connection.add_listener(self)
-        self._endpoint = endpoint or HttpEndpoint(address)
         self._events = event_registry or create_event_registry(self)
         self._extensions = extension_registry or create_extension_registry(self)
 
         self.events.register(EVENTS.Ready, EVENTS.Connect)
-        self.extensions.register_all(TableExtensionType, ServerExtensionType)
+        self._tables = self.extensions.get(TableExtensionType)
+        self._server = self.extensions.get(ServerExtensionType)
+        self._endpoints = self.extensions.get(EndpointExtensionType)
 
         for listener in self._listeners:
             asyncio.run(listener.on_initialized())
@@ -53,16 +57,24 @@ class OmuClient(Client, ConnectionListener):
         return self._connection
 
     @property
-    def endpoint(self) -> Endpoint:
-        return self._endpoint
-
-    @property
     def events(self) -> EventRegistry:
         return self._events
 
     @property
     def extensions(self) -> ExtensionRegistry:
         return self._extensions
+
+    @property
+    def endpoints(self) -> EndpointExtension:
+        return self._endpoints
+
+    @property
+    def tables(self) -> TableExtension:
+        return self._tables
+
+    @property
+    def server(self) -> ServerExtension:
+        return self._server
 
     @property
     def running(self) -> bool:

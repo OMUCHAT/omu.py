@@ -4,8 +4,8 @@ import abc
 from typing import Any
 
 from omu.connection.address import Address
-from omu.extension.server.model.endpoint_info import EndpointInfo
-from omu.interface.serializable import Serializable, Serializer
+from omu.extension.endpoint.model.endpoint_info import EndpointInfo
+from omu.interface import Serializable, Serializer
 
 
 class EndpointType[Req, Res, ReqData, ResData](abc.ABC):
@@ -56,7 +56,7 @@ class Endpoint(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def execute[
-        Req, Res
-    ](self, type: EndpointType[Req, Res, Any, Any], data: Req) -> Res:
+    async def execute[Req, Res](
+        self, type: EndpointType[Req, Res, Any, Any], data: Req
+    ) -> Res:
         ...
