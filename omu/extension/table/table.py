@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import abc
-from typing import AsyncIterator, Dict
+from typing import AsyncIterator, Callable, Coroutine, Dict
 
 from omu.extension.table.model.table_info import TableInfo
 from omu.interface import Keyable, Serializable
+
+type AsyncCallback[T] = Callable[[T], Coroutine]
 
 
 class Table[T: Keyable](abc.ABC):
@@ -53,6 +55,10 @@ class Table[T: Keyable](abc.ABC):
     def remove_listener(self, listener: TableListener[T]) -> None:
         ...
 
+    @abc.abstractmethod
+    def listen(self, listener: AsyncCallback[Dict[str, T]]) -> None:
+        ...
+
 
 class TableListener[T: Keyable]:
     async def on_add(self, items: Dict[str, T]) -> None:
@@ -69,6 +75,42 @@ class TableListener[T: Keyable]:
 
     async def on_cache_update(self, cache: Dict[str, T]) -> None:
         ...
+
+
+class CallbackTableListener[T: Keyable](TableListener[T]):
+    def __init__(
+        self,
+        on_add: AsyncCallback[Dict[str, T]] | None = None,
+        on_update: AsyncCallback[Dict[str, T]] | None = None,
+        on_remove: AsyncCallback[Dict[str, T]] | None = None,
+        on_clear: AsyncCallback[None] | None = None,
+        on_cache_update: AsyncCallback[Dict[str, T]] | None = None,
+    ):
+        self._on_add = on_add
+        self._on_update = on_update
+        self._on_remove = on_remove
+        self._on_clear = on_clear
+        self._on_cache_update = on_cache_update
+
+    async def on_add(self, items: Dict[str, T]) -> None:
+        if self._on_add:
+            await self._on_add(items)
+
+    async def on_update(self, items: Dict[str, T]) -> None:
+        if self._on_update:
+            await self._on_update(items)
+
+    async def on_remove(self, items: Dict[str, T]) -> None:
+        if self._on_remove:
+            await self._on_remove(items)
+
+    async def on_clear(self) -> None:
+        if self._on_clear:
+            await self._on_clear()
+
+    async def on_cache_update(self, cache: Dict[str, T]) -> None:
+        if self._on_cache_update:
+            await self._on_cache_update(cache)
 
 
 class TableType[T: Keyable, D](abc.ABC):

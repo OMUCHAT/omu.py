@@ -1,4 +1,4 @@
-from typing import Any, AsyncIterator, Dict, List, TypedDict
+from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, TypedDict
 
 from omu.client.client import Client
 from omu.connection import ConnectionListener
@@ -7,16 +7,24 @@ from omu.extension.endpoint.endpoint import ClientEndpointType
 from omu.extension.endpoint.model.endpoint_info import EndpointInfo
 from omu.extension.extension import Extension, define_extension_type
 from omu.extension.server.model.extension_info import ExtensionInfo
-from omu.extension.table.model.table_info import TableInfo, TableInfoJson
-from omu.extension.table.table import ModelTableType, Table, TableListener, TableType
 from omu.interface import Keyable, Serializer
+
+from .model.table_info import TableInfo, TableInfoJson
+from .table import (
+    CallbackTableListener,
+    ModelTableType,
+    Table,
+    TableListener,
+    TableType,
+)
+
+type Coro = Callable[..., Awaitable[Any]]
 
 
 class TableExtension(Extension):
     def __init__(self, client: Client):
         self._client = client
         self._tables: Dict[str, Table] = {}
-        self.tables = self.register(TablesTableType)
         client.events.register(
             TableRegisterEvent,
             TableItemAddEvent,
@@ -24,6 +32,7 @@ class TableExtension(Extension):
             TableItemRemoveEvent,
             TableItemClearEvent,
         )
+        self.tables = self.register(TablesTableType)
 
     def register[K: Keyable](self, type: TableType[K, Any]) -> Table[K]:
         if type.info.key() in self._tables:
@@ -103,6 +112,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
         self._cache: Dict[str, T] = {}
         self._listeners: List[TableListener[T]] = []
         self.key = type.info.key()
+        self._listening = False
 
         client.events.add_listener(TableItemAddEvent, self._on_item_add)
         client.events.add_listener(TableItemUpdateEvent, self._on_item_update)
@@ -116,6 +126,8 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
 
     async def on_connected(self) -> None:
         await self._client.send(TableRegisterEvent, self._type.info)
+        if self._listening:
+            await self.fetch(self._type.info.cache_size, None)
 
     async def get(self, key: str) -> T | None:
         if key in self._cache:
@@ -157,6 +169,8 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
         )
         items = self._parse_items(res)
         self._cache.update(items)
+        for listener in self._listeners:
+            await listener.on_cache_update(self._cache)
         return items
 
     async def iterator(self) -> AsyncIterator[T]:
@@ -180,6 +194,14 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
 
     def remove_listener(self, listener: TableListener[T]) -> None:
         self._listeners.remove(listener)
+
+    def listen(self, callback: Callable[[Dict[str, T]], Coro]) -> Callable[[], None]:
+        self._listening = True
+        listener = CallbackTableListener(on_cache_update=callback)
+        self._listeners.append(listener)
+        if self._client.connection.connected:
+            self._client.loop.create_task(self.fetch(self._type.info.cache_size, None))
+        return lambda: self._listeners.remove(listener)
 
     async def _on_item_add(self, event: TableItemsReq) -> None:
         if event["type"] != self.key:

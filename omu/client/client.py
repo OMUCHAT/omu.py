@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+import asyncio
 from typing import TYPE_CHECKING, Any, Coroutine
 
 if TYPE_CHECKING:
@@ -28,6 +29,11 @@ type Coro = Coroutine[Any, Any, None]
 
 
 class Client(abc.ABC):
+    @property
+    @abc.abstractmethod
+    def loop(self) -> asyncio.AbstractEventLoop:
+        ...
+
     @property
     @abc.abstractmethod
     def connection(self) -> Connection:
