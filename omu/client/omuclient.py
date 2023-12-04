@@ -4,7 +4,6 @@ import asyncio
 from typing import TYPE_CHECKING, Any, List
 
 from loguru import logger
-
 from omu.client import Client
 from omu.connection import ConnectionListener
 from omu.connection.address import Address
@@ -36,6 +35,7 @@ class OmuClient(Client, ConnectionListener):
         event_registry: EventRegistry | None = None,
         extension_registry: ExtensionRegistry | None = None,
     ):
+        self._loop = asyncio.get_event_loop()
         self._running = False
         self._listeners: List[ClientListener] = []
         self._app = app
@@ -45,12 +45,16 @@ class OmuClient(Client, ConnectionListener):
         self._extensions = extension_registry or create_extension_registry(self)
 
         self.events.register(EVENTS.Ready, EVENTS.Connect)
-        self._tables = self.extensions.get(TableExtensionType)
-        self._server = self.extensions.get(ServerExtensionType)
-        self._endpoints = self.extensions.get(EndpointExtensionType)
+        self._tables = self.extensions.register(TableExtensionType)
+        self._server = self.extensions.register(ServerExtensionType)
+        self._endpoints = self.extensions.register(EndpointExtensionType)
 
         for listener in self._listeners:
             asyncio.run(listener.on_initialized())
+
+    @property
+    def loop(self) -> asyncio.AbstractEventLoop:
+        return self._loop
 
     @property
     def connection(self) -> Connection:
