@@ -9,3 +9,6 @@ class Model[T](abc.ABC):
     @abc.abstractmethod
     def __str__(self) -> str:
         ...
+
+    def __repr__(self) -> str:
+        return str(self)
