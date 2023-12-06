@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import abc
-from typing import AsyncIterator, Callable, Coroutine, Dict
+from typing import AsyncGenerator, Callable, Coroutine, Dict
 
 from omu.extension.table.model.table_info import TableInfo
 from omu.interface import Keyable, Serializable
@@ -40,7 +40,7 @@ class Table[T: Keyable](abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def iterator(self) -> AsyncIterator[T]:
+    async def iterator(self) -> AsyncGenerator[T]:
         ...
 
     @abc.abstractmethod
@@ -56,7 +56,7 @@ class Table[T: Keyable](abc.ABC):
         ...
 
     @abc.abstractmethod
-    def listen(self, listener: AsyncCallback[Dict[str, T]]) -> None:
+    def listen(self, listener: AsyncCallback[Dict[str, T]] = None) -> None:
         ...
 
 

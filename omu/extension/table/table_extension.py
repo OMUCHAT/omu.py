@@ -125,9 +125,10 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
         return self._cache
 
     async def on_connected(self) -> None:
+        if not self._listening:
+            return
         await self._client.send(TableRegisterEvent, self._type.info)
-        if self._listening:
-            await self.fetch(self._type.info.cache_size, None)
+        await self.fetch(self._type.info.cache_size, None)
 
     async def get(self, key: str) -> T | None:
         if key in self._cache:
@@ -165,7 +166,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
     async def fetch(self, limit: int = 100, cursor: str | None = None) -> Dict[str, T]:
         res = await self._client.endpoints.call(
             TableItemFetchEndpoint,
-            TableFetchReq(type=self.key, limit=limit, cursor=cursor),
+            TableFetchReq(type=self.key, limit=limit or 100, cursor=cursor),
         )
         items = self._parse_items(res)
         self._cache.update(items)
@@ -176,12 +177,16 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
     async def iterator(self) -> AsyncIterator[T]:
         cursor: str | None = None
         while True:
-            items = await self.fetch(100, cursor)
+            items = {
+                k: v for k, v in (await self.fetch(100, cursor)).items() if k != cursor
+            }
             if len(items) == 0:
                 break
             for item in items.values():
                 yield item
             *_, cursor = items.keys()
+            if cursor is None:
+                break
 
     async def size(self) -> int:
         res = await self._client.endpoints.call(
@@ -191,11 +196,14 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
 
     def add_listener(self, listener: TableListener[T]) -> None:
         self._listeners.append(listener)
+        self._listening = True
 
     def remove_listener(self, listener: TableListener[T]) -> None:
         self._listeners.remove(listener)
 
-    def listen(self, callback: Callable[[Dict[str, T]], Coro]) -> Callable[[], None]:
+    def listen(
+        self, callback: Callable[[Dict[str, T]], Coro] = None
+    ) -> Callable[[], None]:
         self._listening = True
         listener = CallbackTableListener(on_cache_update=callback)
         self._listeners.append(listener)
