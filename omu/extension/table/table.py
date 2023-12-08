@@ -6,7 +6,7 @@ from typing import AsyncGenerator, Callable, Coroutine, Dict
 from omu.extension.table.model.table_info import TableInfo
 from omu.interface import Keyable, Serializable
 
-type AsyncCallback[T] = Callable[[T], Coroutine]
+type AsyncCallback[**P] = Callable[P, Coroutine]
 
 
 class Table[T: Keyable](abc.ABC):
@@ -40,7 +40,7 @@ class Table[T: Keyable](abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def iterator(self) -> AsyncGenerator[T]:
+    async def iter(self) -> AsyncGenerator[T, None]:
         ...
 
     @abc.abstractmethod
@@ -56,7 +56,7 @@ class Table[T: Keyable](abc.ABC):
         ...
 
     @abc.abstractmethod
-    def listen(self, listener: AsyncCallback[Dict[str, T]] = None) -> None:
+    def listen(self, listener: AsyncCallback[Dict[str, T]] | None = None) -> None:
         ...
 
 
@@ -83,7 +83,7 @@ class CallbackTableListener[T: Keyable](TableListener[T]):
         on_add: AsyncCallback[Dict[str, T]] | None = None,
         on_update: AsyncCallback[Dict[str, T]] | None = None,
         on_remove: AsyncCallback[Dict[str, T]] | None = None,
-        on_clear: AsyncCallback[None] | None = None,
+        on_clear: AsyncCallback[[]] | None = None,
         on_cache_update: AsyncCallback[Dict[str, T]] | None = None,
     ):
         self._on_add = on_add

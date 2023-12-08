@@ -11,6 +11,7 @@ from omu.interface import Keyable, Serializer
 
 from .model.table_info import TableInfo, TableInfoJson
 from .table import (
+    AsyncCallback,
     CallbackTableListener,
     ModelTableType,
     Table,
@@ -128,7 +129,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
         if not self._listening:
             return
         await self._client.send(TableRegisterEvent, self._type.info)
-        await self.fetch(self._type.info.cache_size, None)
+        await self.fetch(self._type.info.cache_size or 100, None)
 
     async def get(self, key: str) -> T | None:
         if key in self._cache:
@@ -174,7 +175,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
             await listener.on_cache_update(self._cache)
         return items
 
-    async def iterator(self) -> AsyncIterator[T]:
+    async def iter(self) -> AsyncIterator[T]:
         cursor: str | None = None
         while True:
             items = {
@@ -202,13 +203,15 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
         self._listeners.remove(listener)
 
     def listen(
-        self, callback: Callable[[Dict[str, T]], Coro] = None
+        self, callback: AsyncCallback[Dict[str, T]] | None = None
     ) -> Callable[[], None]:
         self._listening = True
         listener = CallbackTableListener(on_cache_update=callback)
         self._listeners.append(listener)
         if self._client.connection.connected:
-            self._client.loop.create_task(self.fetch(self._type.info.cache_size, None))
+            self._client.loop.create_task(
+                self.fetch(self._type.info.cache_size or 100, None)
+            )
         return lambda: self._listeners.remove(listener)
 
     async def _on_item_add(self, event: TableItemsReq) -> None:
