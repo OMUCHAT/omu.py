@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import abc
-from typing import AsyncGenerator, Callable, Coroutine, Dict
+from typing import AsyncGenerator, Awaitable, Callable, Dict
 
 from omu.extension.table.model.table_info import TableInfo
 from omu.interface import Keyable, Serializable
 
-type AsyncCallback[**P] = Callable[P, Coroutine]
+type AsyncCallback[**P] = Callable[P, Awaitable]
+type Coro[**P, T] = Callable[P, Awaitable[T]]
 
 
 class Table[T: Keyable](abc.ABC):
@@ -24,7 +25,7 @@ class Table[T: Keyable](abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def set(self, *items: T) -> None:
+    async def update(self, *items: T) -> None:
         ...
 
     @abc.abstractmethod
@@ -57,6 +58,10 @@ class Table[T: Keyable](abc.ABC):
 
     @abc.abstractmethod
     def listen(self, listener: AsyncCallback[Dict[str, T]] | None = None) -> None:
+        ...
+
+    @abc.abstractmethod
+    def proxy(self, callback: Coro[[T], T | None]) -> Callable[[], None]:
         ...
 
 

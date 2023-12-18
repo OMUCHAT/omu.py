@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import abc
 import asyncio
-from typing import TYPE_CHECKING, Any, Coroutine
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 if TYPE_CHECKING:
     from omu.connection import Connection
@@ -10,6 +10,8 @@ if TYPE_CHECKING:
     from omu.event.event_registry import EventRegistry
     from omu.extension import ExtensionRegistry
     from omu.extension.endpoint.endpoint_extension import EndpointExtension
+    from omu.extension.registry.registry_extension import RegistryExtension
+    from omu.extension.server.model.app import App
     from omu.extension.server.server_extension import ServerExtension
     from omu.extension.table.table_extension import TableExtension
 
@@ -25,10 +27,15 @@ class ClientListener:
         ...
 
 
-type Coro = Coroutine[Any, Any, None]
+type Coro[**P, T] = Callable[P, Awaitable[T]]
 
 
 class Client(abc.ABC):
+    @property
+    @abc.abstractmethod
+    def app(self) -> App:
+        ...
+
     @property
     @abc.abstractmethod
     def loop(self) -> asyncio.AbstractEventLoop:
@@ -57,6 +64,11 @@ class Client(abc.ABC):
     @property
     @abc.abstractmethod
     def tables(self) -> TableExtension:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def registry(self) -> RegistryExtension:
         ...
 
     @property

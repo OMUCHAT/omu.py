@@ -19,7 +19,7 @@ from .table import (
     TableType,
 )
 
-type Coro = Callable[..., Awaitable[Any]]
+type Coro[**P, T] = Callable[P, Awaitable[T]]
 
 
 class TableExtension(Extension):
@@ -28,62 +28,90 @@ class TableExtension(Extension):
         self._tables: Dict[str, Table] = {}
         client.events.register(
             TableRegisterEvent,
+            TableListenEvent,
+            TableProxyListenEvent,
+            TableProxyEvent,
             TableItemAddEvent,
             TableItemUpdateEvent,
             TableItemRemoveEvent,
             TableItemClearEvent,
         )
-        self.tables = self.register(TablesTableType)
+        self.tables = self.get(TablesTableType)
 
     def register[K: Keyable](self, type: TableType[K, Any]) -> Table[K]:
-        if type.info.key() in self._tables:
+        if self.has(type):
             raise Exception(f"Table for key {type.info.key()} already registered")
-        table = TableImpl(self._client, type)
+        table = TableImpl(self._client, type, owner=True)
         self._tables[type.info.key()] = table
         return table
 
     def get[K: Keyable](self, type: TableType[K, Any]) -> Table[K]:
-        if type.info.key() not in self._tables:
-            raise Exception(f"Table for key {type.info.key()} not registered")
-        return self._tables[type.info.key()]
+        if self.has(type):
+            return self._tables[type.info.key()]
+        table = TableImpl(self._client, type)
+        self._tables[type.info.key()] = table
+        return table
+
+    def has(self, type: TableType[Any, Any]) -> bool:
+        return type.info.key() in self._tables
 
 
 TableExtensionType = define_extension_type(
     ExtensionInfo.create("table"), lambda client: TableExtension(client), lambda: []
 )
-TableRegisterEvent = ExtensionEventType[TableInfo, TableInfoJson](
-    TableExtensionType, "register", Serializer.model(TableInfo.from_json)
-)
 
 
-class TableReq(TypedDict):
+class TableEventData(TypedDict):
     type: str
 
 
-class TableItemsReq(TypedDict):
+class TableItemsEventData(TypedDict):
     items: Dict[str, Any]
     type: str
 
 
-class TableKeysReq(TypedDict):
+class TableProxyEventData(TypedDict):
+    items: Dict[str, Any]
+    type: str
+    key: int
+
+
+class TableKeysEventData(TypedDict):
     type: str
     items: List[str]
 
 
-TableItemAddEvent = ExtensionEventType[TableItemsReq, TableItemsReq](
+TableRegisterEvent = ExtensionEventType[TableInfo, TableInfoJson](
+    TableExtensionType, "register", Serializer.model(TableInfo.from_json)
+)
+TableListenEvent = ExtensionEventType[str, str](
+    TableExtensionType, "listen", Serializer.noop()
+)
+TableProxyListenEvent = ExtensionEventType[str, str](
+    TableExtensionType, "proxy_listen", Serializer.noop()
+)
+TableProxyEvent = ExtensionEventType[TableProxyEventData, TableProxyEventData](
+    TableExtensionType, "proxy", Serializer.noop()
+)
+TableProxyEndpoint = ClientEndpointType[TableProxyEventData, int](
+    EndpointInfo.create(TableExtensionType, "proxy"),
+)
+
+
+TableItemAddEvent = ExtensionEventType[TableItemsEventData, TableItemsEventData](
     TableExtensionType, "item_add", Serializer.noop()
 )
-TableItemUpdateEvent = ExtensionEventType[TableItemsReq, TableItemsReq](
+TableItemUpdateEvent = ExtensionEventType[TableItemsEventData, TableItemsEventData](
     TableExtensionType, "item_update", Serializer.noop()
 )
-TableItemRemoveEvent = ExtensionEventType[TableItemsReq, TableItemsReq](
+TableItemRemoveEvent = ExtensionEventType[TableItemsEventData, TableItemsEventData](
     TableExtensionType, "item_remove", Serializer.noop()
 )
-TableItemClearEvent = ExtensionEventType[TableReq, TableReq](
+TableItemClearEvent = ExtensionEventType[TableEventData, TableEventData](
     TableExtensionType, "item_clear", Serializer.noop()
 )
 
-TableItemGetEndpoint = ClientEndpointType[TableKeysReq, TableItemsReq](
+TableItemGetEndpoint = ClientEndpointType[TableKeysEventData, TableItemsEventData](
     EndpointInfo.create(TableExtensionType, "item_get"),
 )
 
@@ -97,7 +125,7 @@ class TableFetchReq(TypedDict):
 TableItemFetchEndpoint = ClientEndpointType[TableFetchReq, Dict[str, Any]](
     EndpointInfo.create(TableExtensionType, "item_fetch"), Serializer.noop()
 )
-TableItemSizeEndpoint = ClientEndpointType[TableReq, int](
+TableItemSizeEndpoint = ClientEndpointType[TableEventData, int](
     EndpointInfo.create(TableExtensionType, "item_size"), Serializer.noop()
 )
 TablesTableType = ModelTableType[TableInfo, TableInfoJson](
@@ -107,14 +135,17 @@ TablesTableType = ModelTableType[TableInfo, TableInfoJson](
 
 
 class TableImpl[T: Keyable](Table[T], ConnectionListener):
-    def __init__(self, client: Client, type: TableType[T, Any]):
+    def __init__(self, client: Client, type: TableType[T, Any], owner: bool = False):
         self._client = client
         self._type = type
+        self._owner = owner
         self._cache: Dict[str, T] = {}
         self._listeners: List[TableListener[T]] = []
+        self._proxies: List[Coro[[T], T | None]] = []
         self.key = type.info.key()
         self._listening = False
 
+        client.events.add_listener(TableProxyEvent, self._on_proxy)
         client.events.add_listener(TableItemAddEvent, self._on_item_add)
         client.events.add_listener(TableItemUpdateEvent, self._on_item_update)
         client.events.add_listener(TableItemRemoveEvent, self._on_item_remove)
@@ -125,17 +156,11 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
     def cache(self) -> Dict[str, T]:
         return self._cache
 
-    async def on_connected(self) -> None:
-        if not self._listening:
-            return
-        await self._client.send(TableRegisterEvent, self._type.info)
-        await self.fetch(self._type.info.cache_size or 100, None)
-
     async def get(self, key: str) -> T | None:
         if key in self._cache:
             return self._cache[key]
         res = await self._client.endpoints.call(
-            TableItemGetEndpoint, TableKeysReq(type=self.key, items=[key])
+            TableItemGetEndpoint, TableKeysEventData(type=self.key, items=[key])
         )
         items = self._parse_items(res["items"])
         self._cache.update(items)
@@ -146,23 +171,23 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
     async def add(self, *items: T) -> None:
         data = {item.key(): self._type.serializer.serialize(item) for item in items}
         await self._client.send(
-            TableItemAddEvent, TableItemsReq(type=self.key, items=data)
+            TableItemAddEvent, TableItemsEventData(type=self.key, items=data)
         )
 
-    async def set(self, *items: T) -> None:
+    async def update(self, *items: T) -> None:
         data = {item.key(): self._type.serializer.serialize(item) for item in items}
         await self._client.send(
-            TableItemUpdateEvent, TableItemsReq(type=self.key, items=data)
+            TableItemUpdateEvent, TableItemsEventData(type=self.key, items=data)
         )
 
     async def remove(self, *items: T) -> None:
         data = {item.key(): self._type.serializer.serialize(item) for item in items}
         await self._client.send(
-            TableItemRemoveEvent, TableItemsReq(type=self.key, items=data)
+            TableItemRemoveEvent, TableItemsEventData(type=self.key, items=data)
         )
 
     async def clear(self) -> None:
-        await self._client.send(TableItemClearEvent, TableReq(type=self.key))
+        await self._client.send(TableItemClearEvent, TableEventData(type=self.key))
 
     async def fetch(self, limit: int = 100, cursor: str | None = None) -> Dict[str, T]:
         res = await self._client.endpoints.call(
@@ -191,7 +216,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
 
     async def size(self) -> int:
         res = await self._client.endpoints.call(
-            TableItemSizeEndpoint, TableReq(type=self.key)
+            TableItemSizeEndpoint, TableEventData(type=self.key)
         )
         return res
 
@@ -208,13 +233,45 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
         self._listening = True
         listener = CallbackTableListener(on_cache_update=callback)
         self._listeners.append(listener)
-        if self._client.connection.connected:
-            self._client.loop.create_task(
-                self.fetch(self._type.info.cache_size or 100, None)
-            )
         return lambda: self._listeners.remove(listener)
 
-    async def _on_item_add(self, event: TableItemsReq) -> None:
+    def proxy(self, callback: Coro[[T], T | None]) -> Callable[[], None]:
+        self._proxies.append(callback)
+        return lambda: self._proxies.remove(callback)
+
+    async def on_connected(self) -> None:
+        if self._owner:
+            await self._client.send(TableRegisterEvent, self._type.info)
+        if self._listening:
+            await self._client.send(TableListenEvent, self.key)
+            if self._type.info.cache_size:
+                await self.fetch(self._type.info.cache_size)
+        if len(self._proxies) > 0:
+            await self._client.send(TableProxyListenEvent, self.key)
+
+    async def _on_proxy(self, event: TableProxyEventData) -> None:
+        if event["type"] != self.key:
+            return
+        items = self._parse_items(event["items"])
+        for proxy in self._proxies:
+            for key, item in items.items():
+                if item := await proxy(item):
+                    items[key] = item
+                else:
+                    del items[key]
+        await self._client.endpoints.execute(
+            TableProxyEndpoint,
+            TableProxyEventData(
+                type=self.key,
+                key=event["key"],
+                items={
+                    item.key(): self._type.serializer.serialize(item)
+                    for item in items.values()
+                },
+            ),
+        )
+
+    async def _on_item_add(self, event: TableItemsEventData) -> None:
         if event["type"] != self.key:
             return
         items = self._parse_items(event["items"])
@@ -223,7 +280,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
             await listener.on_add(items)
             await listener.on_cache_update(self._cache)
 
-    async def _on_item_update(self, event: TableItemsReq) -> None:
+    async def _on_item_update(self, event: TableItemsEventData) -> None:
         if event["type"] != self.key:
             return
         items = self._parse_items(event["items"])
@@ -232,7 +289,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
             await listener.on_update(items)
             await listener.on_cache_update(self._cache)
 
-    async def _on_item_remove(self, event: TableItemsReq) -> None:
+    async def _on_item_remove(self, event: TableItemsEventData) -> None:
         if event["type"] != self.key:
             return
         items = self._parse_items(event["items"])
@@ -244,7 +301,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
             await listener.on_remove(items)
             await listener.on_cache_update(self._cache)
 
-    async def _on_item_clear(self, event: TableReq) -> None:
+    async def _on_item_clear(self, event: TableEventData) -> None:
         if event["type"] != self.key:
             return
         self._cache.clear()

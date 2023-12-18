@@ -37,6 +37,7 @@ class EndpointExtension(Extension):
             return
         future = self.promises[data["key"]]
         future.set_result(data["data"])
+        self.promises.pop(data["key"])
 
     async def _on_error(self, data: EndpointError) -> None:
         if data["key"] not in self.promises:
@@ -49,14 +50,19 @@ class EndpointExtension(Extension):
             raise Exception(f"Endpoint for key {type.info.key()} already registered")
         self.endpoints[type.info.key()] = type
 
+    async def execute[Req, Res, ReqData, ResData](
+        self, endpoint: EndpointType[Req, Res, ReqData, ResData], data: Req
+    ) -> Future[ResData]:
+        json = endpoint.request_serializer.serialize(data)
+        future = await self._call(endpoint, json)
+        return future
+
     async def call[Req, Res, ReqData, ResData](
         self, endpoint: EndpointType[Req, Res, ReqData, ResData], data: Req
     ) -> Res:
-        json = endpoint.request_serializer.serialize(data)
         try:
-            future = await self._call(endpoint, json)
-            response = await future
-            return endpoint.response_serializer.deserialize(response)
+            future = await self.execute(endpoint, data)
+            return endpoint.response_serializer.deserialize(await future)
         except Exception as e:
             raise Exception(f"Error calling endpoint {endpoint.info.key()}") from e
 

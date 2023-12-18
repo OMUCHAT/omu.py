@@ -7,7 +7,7 @@ from omu.connection import Address, Connection, ConnectionListener
 from omu.event import EventJson
 
 
-class WebsocketConnection(Connection):
+class WebsocketsConnection(Connection):
     def __init__(self, address: Address):
         self._address = address
         self._connected = False
@@ -41,10 +41,7 @@ class WebsocketConnection(Connection):
                 await listener.on_connected()
                 await listener.on_status_changed("connected")
         except exceptions.WebSocketException:
-            self._connected = False
-            for listener in self._listeners:
-                await listener.on_disconnected()
-                await listener.on_status_changed("disconnected")
+            await self.disconnect()
 
     async def _listen(self) -> None:
         try:
@@ -53,7 +50,7 @@ class WebsocketConnection(Connection):
                     break
                 try:
                     data = await self._socket.recv()
-                    event = EventJson(**json.loads(data))
+                    event = EventJson.from_json(json.loads(data))
                     for listener in self._listeners:
                         await listener.on_event(event)
                 except exceptions.ConnectionClosed:
@@ -64,7 +61,11 @@ class WebsocketConnection(Connection):
     async def disconnect(self) -> None:
         if not self._socket:
             return
-        await self._socket.close()
+        if not self._socket.closed:
+            try:
+                await self._socket.close()
+            except AttributeError:
+                pass
         self._socket = None
         self._connected = False
         for listener in self._listeners:
@@ -72,7 +73,7 @@ class WebsocketConnection(Connection):
             await listener.on_status_changed("disconnected")
 
     async def send(self, event: EventJson) -> None:
-        if not self._socket:
+        if not self._socket or self._socket.closed or not self._connected:
             raise RuntimeError("Not connected")
         data = json.dumps(
             {

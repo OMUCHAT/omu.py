@@ -4,7 +4,6 @@ import abc
 from typing import TYPE_CHECKING, Any, Callable, Coroutine, Dict, List
 
 from loguru import logger
-
 from omu.connection.connection import ConnectionListener
 
 if TYPE_CHECKING:
@@ -21,9 +20,7 @@ class EventRegistry(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def add_listener[
-        T
-    ](
+    def add_listener[T](
         self,
         event_type: EventType[T, Any],
         listener: AsyncCallable[T] | None = None,
@@ -58,9 +55,7 @@ def create_event_registry(client: Client) -> EventRegistry:
                     raise ValueError(f"Event type {type.type} already registered")
                 self._events[type.type] = EventEntry(type, [])
 
-        def add_listener[
-            T
-        ](
+        def add_listener[T](
             self,
             event_type: EventType[T, Any],
             listener: AsyncCallable[T] | None = None,

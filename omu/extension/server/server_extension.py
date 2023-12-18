@@ -25,5 +25,5 @@ class ServerExtension(Extension):
     def __init__(self, client: Client) -> None:
         self.client = client
         tables = client.extensions.get(TableExtensionType)
-        self.apps = tables.register(AppsTableType)
-        self.extensions = tables.register(ExtensionsTableType)
+        self.apps = tables.get(AppsTableType)
+        self.extensions = tables.get(ExtensionsTableType)
