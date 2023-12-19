@@ -25,7 +25,7 @@ class WebsocketsConnection(Connection):
     @property
     def _ws_endpoint(self) -> str:
         protocol = "wss" if self._address.secure else "ws"
-        return f"{protocol}://{self._address.host}:{self._address.port}"
+        return f"{protocol}://{self._address.host}:{self._address.port}/ws"
 
     async def connect(self) -> None:
         if self._socket and not self._socket.closed:
