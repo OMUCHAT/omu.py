@@ -4,7 +4,6 @@ import asyncio
 from typing import TYPE_CHECKING, Any, List
 
 from loguru import logger
-
 from omu.client import Client
 from omu.connection import ConnectionListener
 from omu.connection.address import Address

@@ -3,7 +3,7 @@ from typing import Any, Callable, TypedDict
 from omu.client.client import Client, Coro
 from omu.connection.connection import ConnectionListener
 from omu.event.event import ExtensionEventType
-from omu.extension.endpoint.endpoint import ClientEndpointType
+from omu.extension.endpoint.endpoint import SerializeEndpointType
 from omu.extension.endpoint.model.endpoint_info import EndpointInfo
 from omu.extension.extension import Extension, define_extension_type
 from omu.extension.server.model.extension_info import ExtensionInfo
@@ -27,7 +27,7 @@ RegistryUpdateEvent = ExtensionEventType[RegistryEventData, RegistryEventData](
 RegistryListenEvent = ExtensionEventType[str, str](
     RegistryExtensionType, "listen", Serializer.noop()
 )
-RegistryGetEndpoint = ClientEndpointType[str, Any](
+RegistryGetEndpoint = SerializeEndpointType[str, Any](
     EndpointInfo.create(RegistryExtensionType, "get"), Serializer.noop()
 )
 
@@ -40,7 +40,7 @@ class RegistryExtension(Extension, ConnectionListener):
         client.connection.add_listener(self)
 
     async def get[T](self, name: str, app: str | None = None) -> T:
-        data: T = await self.client.endpoints.call(
+        data: T = await self.client.endpoints.invoke(
             RegistryGetEndpoint, f"{app or self.client.app.key()}:{name}"
         )
         return data
@@ -54,7 +54,7 @@ class RegistryExtension(Extension, ConnectionListener):
         )
 
     def listen[T](
-        self, name: str, app: str | None = None, type: type[T] | None = None
+        self, name: str, app: str | None = None
     ) -> Callable[[Coro[[T], None]], None]:
         key = f"{app or self.client.app.key()}:{name}"
 

@@ -4,7 +4,6 @@ version = "0.1.0"
 description = "Add your description here"
 authors = [{ name = "am230", email = "111672334+am230@users.noreply.github.com" }]
 dependencies = [
-    "websockets>=12.0",
     "loguru>=0.7.2",
 ]
 readme = "README.md"

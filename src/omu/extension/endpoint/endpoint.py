@@ -25,7 +25,7 @@ class EndpointType[Req, Res, ReqData, ResData](abc.ABC):
         ...
 
 
-class ClientEndpointType[Req, Res](EndpointType[Req, Res, Any, Any]):
+class SerializeEndpointType[Req, Res](EndpointType[Req, Res, Any, Any]):
     def __init__(
         self,
         info: EndpointInfo,
@@ -47,6 +47,18 @@ class ClientEndpointType[Req, Res](EndpointType[Req, Res, Any, Any]):
     @property
     def response_serializer(self) -> Serializable[Res, Any]:
         return self._response_serializer
+
+
+class JsonEndpointType[Req, Res](SerializeEndpointType[Req, Res]):
+    def __init__(
+        self,
+        info: EndpointInfo,
+    ):
+        super().__init__(
+            info,
+            request_serializer=Serializer.noop(),
+            response_serializer=Serializer.noop(),
+        )
 
 
 class Endpoint(abc.ABC):

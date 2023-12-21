@@ -1,7 +1,7 @@
-import json
+import asyncio
 from typing import List
 
-from websockets import client, exceptions
+from aiohttp import ClientSession, web
 
 from omu.connection import Address, Connection, ConnectionListener
 from omu.event import EventJson
@@ -12,7 +12,8 @@ class WebsocketsConnection(Connection):
         self._address = address
         self._connected = False
         self._listeners: List[ConnectionListener] = []
-        self._socket = None
+        self._socket: web.WebSocketResponse = None
+        self._client = ClientSession()
 
     @property
     def address(self) -> Address:
@@ -33,28 +34,28 @@ class WebsocketsConnection(Connection):
 
         await self.disconnect()
 
-        try:
-            self._socket = await client.connect(self._ws_endpoint, ping_interval=None)
-            self._socket.loop.create_task(self._listen())
-            self._connected = True
-            for listener in self._listeners:
-                await listener.on_connected()
-                await listener.on_status_changed("connected")
-        except exceptions.WebSocketException:
-            await self.disconnect()
+        self._socket = await self._client.ws_connect(self._ws_endpoint)
+        asyncio.create_task(self._listen())
+        self._connected = True
+        for listener in self._listeners:
+            await listener.on_connected()
+            await listener.on_status_changed("connected")
 
     async def _listen(self) -> None:
         try:
             while True:
                 if not self._socket:
                     break
-                try:
-                    data = await self._socket.recv()
-                    event = EventJson.from_json(json.loads(data))
-                    for listener in self._listeners:
-                        await listener.on_event(event)
-                except exceptions.ConnectionClosed:
+                msg = await self._socket.receive()
+                if msg.type == web.WSMsgType.CLOSE:
                     break
+                elif msg.type == web.WSMsgType.ERROR:
+                    break
+                elif msg.type == web.WSMsgType.CLOSED:
+                    break
+                event = EventJson.from_json(msg.json())
+                for listener in self._listeners:
+                    await listener.on_event(event)
         finally:
             await self.disconnect()
 
@@ -75,13 +76,12 @@ class WebsocketsConnection(Connection):
     async def send(self, event: EventJson) -> None:
         if not self._socket or self._socket.closed or not self._connected:
             raise RuntimeError("Not connected")
-        data = json.dumps(
+        await self._socket.send_json(
             {
                 "type": event.type,
                 "data": event.data,
             }
         )
-        await self._socket.send(data)
 
     def add_listener[T: ConnectionListener](self, listener: T) -> T:
         self._listeners.append(listener)
