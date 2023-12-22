@@ -118,7 +118,8 @@ TableItemGetEndpoint = JsonEndpointType[TableKeysEventData, TableItemsEventData]
 
 class TableFetchReq(TypedDict):
     type: str
-    limit: int
+    before: int | None
+    after: int | None
     cursor: str | None
 
 
