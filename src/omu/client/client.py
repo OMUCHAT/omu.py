@@ -6,12 +6,11 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 if TYPE_CHECKING:
     from omu.connection import Connection
-    from omu.event import EventType
-    from omu.event.event_registry import EventRegistry
+    from omu.event import EventRegistry, EventType
     from omu.extension import ExtensionRegistry
     from omu.extension.endpoint.endpoint_extension import EndpointExtension
     from omu.extension.registry.registry_extension import RegistryExtension
-    from omu.extension.server.model.app import App
+    from omu.extension.server.model import App
     from omu.extension.server.server_extension import ServerExtension
     from omu.extension.table.table_extension import TableExtension
 

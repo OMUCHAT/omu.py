@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import abc
-from typing import AsyncGenerator, Awaitable, Callable, Dict
+from typing import AsyncGenerator, Awaitable, Callable, Dict, Protocol
 
+from omu.extension.extension import ExtensionType
+from omu.extension.server.model.app import App
 from omu.extension.table.model.table_info import TableInfo
 from omu.interface import Keyable, Serializable
+from omu.interface.serializable import Serializer
 
 type AsyncCallback[**P] = Callable[P, Awaitable]
 type Coro[**P, T] = Callable[P, Awaitable[T]]
@@ -37,11 +40,20 @@ class Table[T: Keyable](abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def fetch(self, limit: int = 100, cursor: str | None = None) -> None:
+    async def fetch(
+        self,
+        before: int | None = None,
+        after: int | None = None,
+        cursor: str | None = None,
+    ) -> Dict[str, T]:
         ...
 
     @abc.abstractmethod
-    async def iter(self) -> AsyncGenerator[T, None]:
+    async def iter(
+        self,
+        backward: bool = False,
+        cursor: str | None = None,
+    ) -> AsyncGenerator[T, None]:
         ...
 
     @abc.abstractmethod
@@ -130,14 +142,48 @@ class TableType[T: Keyable, D](abc.ABC):
         ...
 
 
+class TableEntry[T: Keyable, D](Protocol):
+    def key(self) -> str:
+        ...
+
+    def json(self) -> D:
+        ...
+
+    @classmethod
+    def from_json(cls, json: D) -> T:
+        ...
+
+
 class ModelTableType[T: Keyable, D](TableType[T, D]):
     def __init__(self, info: TableInfo, serializer: Serializable[T, D]):
         self._info = info
         self._serializer = serializer
 
+    @classmethod
+    def of[_T: Keyable, _D](
+        cls, app: App, name: str, model: type[TableEntry[_T, _D]]
+    ) -> TableType[_T, _D]:
+        return ModelTableType(
+            info=TableInfo.of(app, name),
+            serializer=Serializer.model(model),
+        )
+
+    @classmethod
+    def of_extension[_T: Keyable, _D](
+        cls, extension: ExtensionType, name: str, model: type[TableEntry[_T, _D]]
+    ) -> TableType[_T, _D]:
+        return ModelTableType(
+            info=TableInfo.of_extension(extension, name),
+            serializer=Serializer.model(model),
+        )
+
     @property
     def info(self) -> TableInfo:
         return self._info
+
+    @property
+    def key(self) -> str:
+        return self._info.key()
 
     @property
     def serializer(self) -> Serializable[T, D]:

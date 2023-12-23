@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import abc
+from typing import TYPE_CHECKING
 
-from omu.extension.extension import ExtensionType
-from omu.interface import Serializable
+from omu.interface.serializable import Serializer
+
+if TYPE_CHECKING:
+    from omu.extension.extension import ExtensionType
+    from omu.extension.server.model.app import App
+    from omu.interface import Serializable
 
 
 class EventJson[T]:
@@ -52,9 +57,39 @@ class EventType[T, D](abc.ABC):
         return self.type
 
 
-class BuiltinEventType[T, D](EventType[T, D]):
-    def __init__(self, type: str, serializer: Serializable[T, D]):
-        self._type = type
+class JsonEventType[T](EventType[T, T]):
+    def __init__(self, owner: str, name: str, serializer: Serializable[T, T]):
+        self._type = f"{owner}:{name}"
+        self._serializer = serializer
+
+    @property
+    def type(self) -> str:
+        return self._type
+
+    @property
+    def serializer(self) -> Serializable[T, T]:
+        return self._serializer
+
+    @classmethod
+    def of(cls, app: App, name: str) -> JsonEventType[T]:
+        return cls(
+            owner=app.key(),
+            name=name,
+            serializer=Serializer.noop(),
+        )
+
+    @classmethod
+    def of_extension(cls, extension: ExtensionType, name: str) -> JsonEventType[T]:
+        return cls(
+            owner=extension.key,
+            name=name,
+            serializer=Serializer.noop(),
+        )
+
+
+class SerializeEventType[T, D](EventType[T, D]):
+    def __init__(self, owner: str, name: str, serializer: Serializable[T, D]):
+        self._type = f"{owner}:{name}"
         self._serializer = serializer
 
     @property
@@ -65,19 +100,22 @@ class BuiltinEventType[T, D](EventType[T, D]):
     def serializer(self) -> Serializable[T, D]:
         return self._serializer
 
+    @classmethod
+    def of(
+        cls, app: App, name: str, serializer: Serializable[T, D]
+    ) -> SerializeEventType[T, D]:
+        return cls(
+            owner=app.key(),
+            name=name,
+            serializer=serializer,
+        )
 
-class ExtensionEventType[T, D](EventType[T, D]):
-    def __init__(
-        self, extension_type: ExtensionType, type: str, serializer: Serializable[T, D]
-    ):
-        self._extension_type = extension_type
-        self._type = type
-        self._serializer = serializer
-
-    @property
-    def type(self) -> str:
-        return f"{self._extension_type.key}:{self._type}"
-
-    @property
-    def serializer(self) -> Serializable[T, D]:
-        return self._serializer
+    @classmethod
+    def of_extension(
+        cls, extension: ExtensionType, name: str, serializer: Serializable[T, D]
+    ) -> SerializeEventType[T, D]:
+        return cls(
+            owner=extension.key,
+            name=name,
+            serializer=serializer,
+        )

@@ -2,12 +2,11 @@ from __future__ import annotations
 
 from typing import NotRequired, TypedDict
 
-from omu.extension.extension import ExtensionType
 from omu.interface import Keyable, Model
 
 
 class EndpointInfoJson(TypedDict):
-    app: str
+    owner: str
     name: str
     description: NotRequired[str] | None
 
@@ -15,11 +14,11 @@ class EndpointInfoJson(TypedDict):
 class EndpointInfo(Keyable, Model[EndpointInfoJson]):
     def __init__(
         self,
-        app: str,
+        owner: str,
         name: str,
         description: str | None = None,
     ) -> None:
-        self.app = app
+        self.owner = owner
         self.name = name
         self.description = description
 
@@ -29,26 +28,13 @@ class EndpointInfo(Keyable, Model[EndpointInfoJson]):
 
     def json(self) -> EndpointInfoJson:
         return EndpointInfoJson(
-            app=self.app,
+            owner=self.owner,
             name=self.name,
             description=self.description,
         )
 
-    @classmethod
-    def create(
-        cls,
-        extension: ExtensionType,
-        name: str,
-        description: str | None = None,
-    ) -> EndpointInfo:
-        return EndpointInfo(
-            app=extension.key,
-            name=name,
-            description=description,
-        )
-
     def key(self) -> str:
-        return f"{self.app}:{self.name}"
+        return f"{self.owner}:{self.name}"
 
     def __str__(self) -> str:
         return f"EndpointInfo({self.key()})"

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import abc
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Protocol
 
 if TYPE_CHECKING:
-    from omu.interface import Model
+    pass
 
 
 class Serializable[T, D](abc.ABC):
@@ -14,6 +14,15 @@ class Serializable[T, D](abc.ABC):
 
     @abc.abstractmethod
     def deserialize(self, item: D) -> T:
+        ...
+
+
+class Jsonable[T, D](Protocol):
+    def json(self) -> D:
+        ...
+
+    @classmethod
+    def from_json(cls, json: D) -> T:
         ...
 
 
@@ -33,7 +42,7 @@ class Serializer[T, D](Serializable[T, D]):
         return NoopSerializer()
 
     @classmethod
-    def model[M: Model, _D](cls, model: Callable[[_D], M]) -> Serializable[M, _D]:
+    def model[_T, _D](cls, model: type[Jsonable[_T, _D]]) -> Serializable[_T, _D]:
         return ModelSerializer(model)
 
     @classmethod
@@ -60,15 +69,15 @@ class NoopSerializer[T](Serializable[T, T]):
         return "NoopSerializer()"
 
 
-class ModelSerializer[M: Model, _D](Serializable[M, _D]):
-    def __init__(self, model: Callable[[_D], M]):
+class ModelSerializer[M: Jsonable, D](Serializable[M, D]):
+    def __init__(self, model: type[Jsonable[M, D]]):
         self._model = model
 
-    def serialize(self, item: M) -> _D:
+    def serialize(self, item: M) -> D:
         return item.json()
 
-    def deserialize(self, item: _D) -> M:
-        return self._model(item)
+    def deserialize(self, item: D) -> M:
+        return self._model.from_json(item)
 
     def __repr__(self) -> str:
         return f"ModelSerializer({self._model})"

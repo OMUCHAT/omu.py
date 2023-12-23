@@ -1,15 +1,17 @@
-from omu.event.event import BuiltinEventType
-from omu.extension.server.model.app import App, AppJson
+from omu.event.event import JsonEventType, SerializeEventType
+from omu.extension.server.model.app import App
 from omu.interface import Serializer
 
 
 class EVENTS:
-    Connect = BuiltinEventType[App, AppJson](
+    Connect = SerializeEventType(
+        "",
         "connect",
-        Serializer.model(App.from_json),
+        Serializer.model(App),
     )
 
-    Ready = BuiltinEventType[None, None](
+    Ready = JsonEventType[None](
+        "",
         "ready",
         Serializer.noop(),
     )

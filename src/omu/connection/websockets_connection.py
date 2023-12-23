@@ -1,6 +1,7 @@
 import asyncio
 from typing import List
 
+import aiohttp
 from aiohttp import ClientSession, web
 
 from omu.connection import Address, Connection, ConnectionListener
@@ -12,7 +13,7 @@ class WebsocketsConnection(Connection):
         self._address = address
         self._connected = False
         self._listeners: List[ConnectionListener] = []
-        self._socket: web.WebSocketResponse = None
+        self._socket: aiohttp.ClientWebSocketResponse | None = None
         self._client = ClientSession()
 
     @property

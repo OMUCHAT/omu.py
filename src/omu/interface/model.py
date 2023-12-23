@@ -1,9 +1,16 @@
+from __future__ import annotations
+
 import abc
 
 
-class Model[T](abc.ABC):
+class Model[D](abc.ABC):
     @abc.abstractmethod
-    def json(self) -> T:
+    def json(self) -> D:
+        ...
+
+    @classmethod
+    @abc.abstractmethod
+    def from_json(cls, json: D) -> Model[D]:
         ...
 
     @abc.abstractmethod

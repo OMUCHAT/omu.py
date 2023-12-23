@@ -5,12 +5,11 @@ from typing import Any, Awaitable, Callable, Dict, Tuple, TypedDict
 
 from omu.client import Client
 from omu.connection import ConnectionListener
-from omu.event.event import ExtensionEventType
+from omu.event.event import JsonEventType, SerializeEventType
 from omu.extension.endpoint.endpoint import EndpointType, JsonEndpointType
-from omu.extension.endpoint.model.endpoint_info import EndpointInfo, EndpointInfoJson
+from omu.extension.endpoint.model.endpoint_info import EndpointInfo
 from omu.extension.extension import Extension, define_extension_type
 from omu.extension.server.model.extension_info import ExtensionInfo
-from omu.extension.table.model.table_info import TableInfo
 from omu.extension.table.table import ModelTableType
 from omu.interface import Serializer
 
@@ -81,11 +80,11 @@ class EndpointExtension(Extension, ConnectionListener):
         self.endpoints[type.info.key()] = (type, func)
 
     def listen(
-        self, func: Coro | None = None, name: str | None = None
+        self, func: Coro | None = None, name: str | None = None, app: str | None = None
     ) -> Callable[[Coro], Coro]:
         def decorator(func: Coro) -> Coro:
             info = EndpointInfo(
-                app=self.client.app.key(),
+                owner=app or self.client.app.key(),
                 name=name or func.__name__,
                 description=getattr(func, "__doc__", ""),
             )
@@ -100,7 +99,7 @@ class EndpointExtension(Extension, ConnectionListener):
     async def call[Req, Res](self, name: str, req: Any, app: str | None = None) -> Any:
         endpoint = JsonEndpointType(
             EndpointInfo(
-                app=app or self.client.app.key(),
+                owner=app or self.client.app.key(),
                 name=name,
             ),
         )
@@ -154,21 +153,25 @@ class EndpointError(TypedDict):
     error: str
 
 
-EndpointRegisterEvent = ExtensionEventType[EndpointInfo, EndpointInfoJson](
-    EndpointExtensionType, "register", Serializer.model(EndpointInfo.from_json)
+EndpointRegisterEvent = SerializeEventType.of_extension(
+    EndpointExtensionType, "register", Serializer.model(EndpointInfo)
 )
 
 
-EndpointCallEvent = ExtensionEventType[EndpointDataReq, EndpointDataReq](
-    EndpointExtensionType, "call", Serializer.noop()
+EndpointCallEvent = JsonEventType[EndpointDataReq].of_extension(
+    EndpointExtensionType,
+    "call",
 )
-EndpointReceiveEvent = ExtensionEventType[EndpointDataReq, EndpointDataReq](
-    EndpointExtensionType, "receive", Serializer.noop()
+EndpointReceiveEvent = JsonEventType[EndpointDataReq].of_extension(
+    EndpointExtensionType,
+    "receive",
 )
-EndpointErrorEvent = ExtensionEventType[EndpointError, EndpointError](
-    EndpointExtensionType, "error", Serializer.noop()
+EndpointErrorEvent = JsonEventType[EndpointError].of_extension(
+    EndpointExtensionType,
+    "error",
 )
-EndpointsTableType = ModelTableType[EndpointInfo, EndpointInfoJson](
-    TableInfo.create(EndpointExtensionType, "endpoints"),
-    Serializer.model(lambda data: EndpointInfo.from_json(data)),
+EndpointsTableType = ModelTableType.of_extension(
+    EndpointExtensionType,
+    "endpoints",
+    EndpointInfo,
 )

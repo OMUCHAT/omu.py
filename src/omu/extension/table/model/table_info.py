@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import NotRequired, TypedDict
 
-from omu.extension import ExtensionType
+from omu.extension.extension import ExtensionType
+from omu.extension.server.model.app import App
 from omu.interface import Keyable, Model
 
 
@@ -37,9 +38,9 @@ class TableInfo(Keyable, Model):
         return TableInfo(**json)
 
     @classmethod
-    def create(
+    def of(
         cls,
-        extension_type: ExtensionType,
+        app: App,
         name: str,
         description: str | None = None,
         use_database: bool | None = None,
@@ -47,7 +48,26 @@ class TableInfo(Keyable, Model):
         cache_size: int | None = None,
     ) -> TableInfo:
         return TableInfo(
-            owner=extension_type.key,
+            owner=app.key(),
+            name=name,
+            description=description,
+            use_database=use_database,
+            cache=cache,
+            cache_size=cache_size,
+        )
+
+    @classmethod
+    def of_extension(
+        cls,
+        extension: ExtensionType,
+        name: str,
+        description: str | None = None,
+        use_database: bool | None = None,
+        cache: bool | None = None,
+        cache_size: int | None = None,
+    ) -> TableInfo:
+        return TableInfo(
+            owner=extension.key,
             name=name,
             description=description,
             use_database=use_database,

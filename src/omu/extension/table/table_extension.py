@@ -1,15 +1,14 @@
-from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, TypedDict
+from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, List, TypedDict
 
 from omu.client.client import Client
 from omu.connection import ConnectionListener
-from omu.event.event import ExtensionEventType
+from omu.event.event import JsonEventType, SerializeEventType
 from omu.extension.endpoint.endpoint import JsonEndpointType
-from omu.extension.endpoint.model.endpoint_info import EndpointInfo
 from omu.extension.extension import Extension, define_extension_type
 from omu.extension.server.model.extension_info import ExtensionInfo
 from omu.interface import Keyable, Serializer
 
-from .model.table_info import TableInfo, TableInfoJson
+from .model.table_info import TableInfo
 from .table import (
     AsyncCallback,
     CallbackTableListener,
@@ -81,38 +80,40 @@ class TableKeysEventData(TypedDict):
     items: List[str]
 
 
-TableRegisterEvent = ExtensionEventType[TableInfo, TableInfoJson](
-    TableExtensionType, "register", Serializer.model(TableInfo.from_json)
+TableRegisterEvent = SerializeEventType.of_extension(
+    TableExtensionType, "register", Serializer.model(TableInfo)
 )
-TableListenEvent = ExtensionEventType[str, str](
-    TableExtensionType, "listen", Serializer.noop()
+TableListenEvent = JsonEventType[str].of_extension(TableExtensionType, name="listen")
+TableProxyListenEvent = JsonEventType[str].of_extension(
+    TableExtensionType, "proxy_listen"
 )
-TableProxyListenEvent = ExtensionEventType[str, str](
-    TableExtensionType, "proxy_listen", Serializer.noop()
+TableProxyEvent = JsonEventType[TableProxyEventData].of_extension(
+    TableExtensionType, "proxy"
 )
-TableProxyEvent = ExtensionEventType[TableProxyEventData, TableProxyEventData](
-    TableExtensionType, "proxy", Serializer.noop()
-)
-TableProxyEndpoint = JsonEndpointType[TableProxyEventData, int](
-    EndpointInfo.create(TableExtensionType, "proxy"),
-)
-
-
-TableItemAddEvent = ExtensionEventType[TableItemsEventData, TableItemsEventData](
-    TableExtensionType, "item_add", Serializer.noop()
-)
-TableItemUpdateEvent = ExtensionEventType[TableItemsEventData, TableItemsEventData](
-    TableExtensionType, "item_update", Serializer.noop()
-)
-TableItemRemoveEvent = ExtensionEventType[TableItemsEventData, TableItemsEventData](
-    TableExtensionType, "item_remove", Serializer.noop()
-)
-TableItemClearEvent = ExtensionEventType[TableEventData, TableEventData](
-    TableExtensionType, "item_clear", Serializer.noop()
+TableProxyEndpoint = JsonEndpointType[TableProxyEventData, int].of_extension(
+    TableExtensionType,
+    "proxy",
 )
 
-TableItemGetEndpoint = JsonEndpointType[TableKeysEventData, TableItemsEventData](
-    EndpointInfo.create(TableExtensionType, "item_get"),
+
+TableItemAddEvent = JsonEventType[TableItemsEventData].of_extension(
+    TableExtensionType, "item_add"
+)
+TableItemUpdateEvent = JsonEventType[TableItemsEventData].of_extension(
+    TableExtensionType, "item_update"
+)
+TableItemRemoveEvent = JsonEventType[TableItemsEventData].of_extension(
+    TableExtensionType, "item_remove"
+)
+TableItemClearEvent = JsonEventType[TableEventData].of_extension(
+    TableExtensionType, "item_clear"
+)
+
+TableItemGetEndpoint = JsonEndpointType[
+    TableKeysEventData, TableItemsEventData
+].of_extension(
+    TableExtensionType,
+    "item_get",
 )
 
 
@@ -123,15 +124,16 @@ class TableFetchReq(TypedDict):
     cursor: str | None
 
 
-TableItemFetchEndpoint = JsonEndpointType[TableFetchReq, Dict[str, Any]](
-    EndpointInfo.create(TableExtensionType, "item_fetch")
+TableItemFetchEndpoint = JsonEndpointType[TableFetchReq, Dict[str, Any]].of_extension(
+    TableExtensionType, "item_fetch"
 )
-TableItemSizeEndpoint = JsonEndpointType[TableEventData, int](
-    EndpointInfo.create(TableExtensionType, "item_size")
+TableItemSizeEndpoint = JsonEndpointType[TableEventData, int].of_extension(
+    TableExtensionType, "item_size"
 )
-TablesTableType = ModelTableType[TableInfo, TableInfoJson](
-    TableInfo.create(TableExtensionType, "tables"),
-    Serializer.model(lambda data: TableInfo.from_json(data)),
+TablesTableType = ModelTableType.of_extension(
+    TableExtensionType,
+    "tables",
+    TableInfo,
 )
 
 
@@ -190,10 +192,15 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
     async def clear(self) -> None:
         await self._client.send(TableItemClearEvent, TableEventData(type=self.key))
 
-    async def fetch(self, limit: int = 100, cursor: str | None = None) -> Dict[str, T]:
+    async def fetch(
+        self,
+        before: int | None = None,
+        after: int | None = None,
+        cursor: str | None = None,
+    ) -> Dict[str, T]:
         res = await self._client.endpoints.invoke(
             TableItemFetchEndpoint,
-            TableFetchReq(type=self.key, limit=limit or 100, cursor=cursor),
+            TableFetchReq(type=self.key, before=before, after=after, cursor=cursor),
         )
         items = self._parse_items(res)
         self._cache.update(items)
@@ -201,19 +208,27 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
             await listener.on_cache_update(self._cache)
         return items
 
-    async def iter(self) -> AsyncIterator[T]:
-        cursor: str | None = None
-        while True:
-            items = {
-                k: v for k, v in (await self.fetch(100, cursor)).items() if k != cursor
-            }
-            if len(items) == 0:
-                break
+    async def iter(
+        self,
+        backward: bool = False,
+        cursor: str | None = None,
+    ) -> AsyncGenerator[T, None]:
+        items = await self.fetch(
+            before=self._type.info.cache_size if backward else None,
+            after=self._type.info.cache_size if not backward else None,
+            cursor=cursor,
+        )
+        for item in items.values():
+            yield item
+        while len(items) > 0:
+            cursor = next(iter(items.keys()))
+            items = await self.fetch(
+                before=self._type.info.cache_size if backward else None,
+                after=self._type.info.cache_size if not backward else None,
+                cursor=cursor,
+            )
             for item in items.values():
                 yield item
-            *_, cursor = items.keys()
-            if cursor is None:
-                break
 
     async def size(self) -> int:
         res = await self._client.endpoints.invoke(

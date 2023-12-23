@@ -2,12 +2,10 @@ from typing import Any, Callable, TypedDict
 
 from omu.client.client import Client, Coro
 from omu.connection.connection import ConnectionListener
-from omu.event.event import ExtensionEventType
-from omu.extension.endpoint.endpoint import SerializeEndpointType
-from omu.extension.endpoint.model.endpoint_info import EndpointInfo
+from omu.event.event import JsonEventType
+from omu.extension.endpoint.endpoint import JsonEndpointType
 from omu.extension.extension import Extension, define_extension_type
 from omu.extension.server.model.extension_info import ExtensionInfo
-from omu.interface.serializable import Serializer
 
 RegistryExtensionType = define_extension_type(
     ExtensionInfo.create("registry"),
@@ -21,14 +19,12 @@ class RegistryEventData(TypedDict):
     value: Any
 
 
-RegistryUpdateEvent = ExtensionEventType[RegistryEventData, RegistryEventData](
-    RegistryExtensionType, "update", Serializer.noop()
+RegistryUpdateEvent = JsonEventType[RegistryEventData].of_extension(
+    RegistryExtensionType, "update"
 )
-RegistryListenEvent = ExtensionEventType[str, str](
-    RegistryExtensionType, "listen", Serializer.noop()
-)
-RegistryGetEndpoint = SerializeEndpointType[str, Any](
-    EndpointInfo.create(RegistryExtensionType, "get"), Serializer.noop()
+RegistryListenEvent = JsonEventType[str].of_extension(RegistryExtensionType, "listen")
+RegistryGetEndpoint = JsonEndpointType[str, Any].of_extension(
+    RegistryExtensionType, "get"
 )
 
 
