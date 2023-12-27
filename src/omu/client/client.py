@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from omu.event import EventRegistry, EventType
     from omu.extension import ExtensionRegistry
     from omu.extension.endpoint.endpoint_extension import EndpointExtension
+    from omu.extension.message.message_extension import MessageExtension
     from omu.extension.registry.registry_extension import RegistryExtension
     from omu.extension.server.model import App
     from omu.extension.server.server_extension import ServerExtension
@@ -68,6 +69,11 @@ class Client(abc.ABC):
     @property
     @abc.abstractmethod
     def registry(self) -> RegistryExtension:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def message(self) -> MessageExtension:
         ...
 
     @property

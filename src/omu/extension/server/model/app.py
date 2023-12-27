@@ -47,7 +47,7 @@ class App(Keyable, Model[AppJson]):
     def key(self) -> str:
         return f"{self.group}/{self.name}"
 
-    def json(self) -> AppJson:
+    def to_json(self) -> AppJson:
         return {
             "name": self.name,
             "group": self.group,

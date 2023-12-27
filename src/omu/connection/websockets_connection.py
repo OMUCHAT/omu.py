@@ -2,19 +2,21 @@ import asyncio
 from typing import List
 
 import aiohttp
-from aiohttp import ClientSession, web
+from aiohttp import web
 
+from omu.client.client import Client
 from omu.connection import Address, Connection, ConnectionListener
 from omu.event import EventJson
 
 
 class WebsocketsConnection(Connection):
-    def __init__(self, address: Address):
+    def __init__(self, client: Client, address: Address):
+        self._client = client
         self._address = address
         self._connected = False
         self._listeners: List[ConnectionListener] = []
         self._socket: aiohttp.ClientWebSocketResponse | None = None
-        self._client = ClientSession()
+        self._session = aiohttp.ClientSession()
 
     @property
     def address(self) -> Address:
@@ -35,7 +37,7 @@ class WebsocketsConnection(Connection):
 
         await self.disconnect()
 
-        self._socket = await self._client.ws_connect(self._ws_endpoint)
+        self._socket = await self._session.ws_connect(self._ws_endpoint)
         asyncio.create_task(self._listen())
         self._connected = True
         for listener in self._listeners:
@@ -55,10 +57,13 @@ class WebsocketsConnection(Connection):
                 elif msg.type == web.WSMsgType.CLOSED:
                     break
                 event = EventJson.from_json(msg.json())
-                for listener in self._listeners:
-                    await listener.on_event(event)
+                self._client.loop.create_task(self._dispatch(event))
         finally:
             await self.disconnect()
+
+    async def _dispatch(self, event: EventJson) -> None:
+        for listener in self._listeners:
+            await listener.on_event(event)
 
     async def disconnect(self) -> None:
         if not self._socket:

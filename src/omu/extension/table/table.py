@@ -146,7 +146,7 @@ class TableEntry[T: Keyable, D](Protocol):
     def key(self) -> str:
         ...
 
-    def json(self) -> D:
+    def to_json(self) -> D:
         ...
 
     @classmethod

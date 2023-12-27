@@ -26,7 +26,7 @@ class EndpointInfo(Keyable, Model[EndpointInfoJson]):
     def from_json(cls, json: EndpointInfoJson) -> EndpointInfo:
         return EndpointInfo(**json)
 
-    def json(self) -> EndpointInfoJson:
+    def to_json(self) -> EndpointInfoJson:
         return EndpointInfoJson(
             owner=self.owner,
             name=self.name,

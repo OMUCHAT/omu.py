@@ -5,7 +5,7 @@ import abc
 
 class Model[D](abc.ABC):
     @abc.abstractmethod
-    def json(self) -> D:
+    def to_json(self) -> D:
         ...
 
     @classmethod

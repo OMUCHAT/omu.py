@@ -109,8 +109,7 @@ class EndpointExtension(Extension, ConnectionListener):
     async def execute[Req, ResData](
         self, endpoint: EndpointType[Req, Any, Any, ResData], data: Req
     ) -> Future[ResData]:
-        json = endpoint.request_serializer.serialize(data)
-        future = await self._call(endpoint, json)
+        future = await self._call(endpoint, data)
         return future
 
     async def invoke[Req, Res](

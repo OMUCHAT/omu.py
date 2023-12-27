@@ -78,7 +78,7 @@ class TableInfo(Keyable, Model):
     def key(self) -> str:
         return f"{self.owner}:{self.name}"
 
-    def json(self) -> TableInfoJson:
+    def to_json(self) -> TableInfoJson:
         return TableInfoJson(
             owner=self.owner,
             name=self.name,

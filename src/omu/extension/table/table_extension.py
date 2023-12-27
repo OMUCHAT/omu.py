@@ -275,7 +275,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
                     items[key] = item
                 else:
                     del items[key]
-        await self._client.endpoints.execute(
+        await self._client.endpoints.invoke(
             TableProxyEndpoint,
             TableProxyEventData(
                 type=self.key,

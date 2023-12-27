@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import abc
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, List, TypedDict
 
 from omu.interface.serializable import Serializer
 
@@ -57,7 +57,12 @@ class EventType[T, D](abc.ABC):
         return self.type
 
 
-class JsonEventType[T](EventType[T, T]):
+type Jsonable = (
+    str | int | float | bool | None | Dict[str, Jsonable] | List[Jsonable] | TypedDict
+)
+
+
+class JsonEventType[T: Jsonable](EventType[T, T]):
     def __init__(self, owner: str, name: str, serializer: Serializable[T, T]):
         self._type = f"{owner}:{name}"
         self._serializer = serializer

@@ -26,7 +26,7 @@ class ExtensionInfo(Keyable, Model[ExtensionInfoJson]):
     def key(self) -> str:
         return self.name
 
-    def json(self) -> ExtensionInfoJson:
+    def to_json(self) -> ExtensionInfoJson:
         return ExtensionInfoJson(name=self.name, description=self.description)
 
     def __str__(self) -> str:

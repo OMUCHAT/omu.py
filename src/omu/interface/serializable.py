@@ -18,7 +18,7 @@ class Serializable[T, D](abc.ABC):
 
 
 class Jsonable[T, D](Protocol):
-    def json(self) -> D:
+    def to_json(self) -> D:
         ...
 
     @classmethod
@@ -74,7 +74,7 @@ class ModelSerializer[M: Jsonable, D](Serializable[M, D]):
         self._model = model
 
     def serialize(self, item: M) -> D:
-        return item.json()
+        return item.to_json()
 
     def deserialize(self, item: D) -> M:
         return self._model.from_json(item)
