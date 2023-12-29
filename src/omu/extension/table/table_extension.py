@@ -229,6 +229,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
             )
             for item in items.values():
                 yield item
+            items.pop(cursor, None)
 
     async def size(self) -> int:
         res = await self._client.endpoints.invoke(

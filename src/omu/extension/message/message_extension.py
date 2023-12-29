@@ -59,10 +59,10 @@ class MessageExtension(Extension, ConnectionListener):
 
     def listen[T](
         self, name: str, app: str | None = None
-    ) -> Callable[[Coro[[T], None]], None]:
+    ) -> Callable[[Coro[[T | None], None]], None]:
         key = f"{app or self.client.app.key()}:{name}"
 
-        def decorator(callback: Coro[[T], None]) -> None:
+        def decorator(callback: Coro[[T | None], None]) -> None:
             self._listen_keys.add(key)
 
             async def wrapper(event: MessageEventData) -> None:
