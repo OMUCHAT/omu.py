@@ -2,7 +2,7 @@ import asyncio
 
 from omu.client import OmuClient
 from omu.connection import Address, ConnectionListener
-from omu.event.events import Ready
+from omu.event import EVENTS
 from omu.extension.server.model.app import App
 from omu.helper import instance
 
@@ -34,7 +34,7 @@ class MyListener(ConnectionListener):
         print(event)
 
 
-@client.events.add_listener(Ready)
+@client.events.add_listener(EVENTS.Ready)
 async def on_ready(_) -> None:
     print("Ready")
 
