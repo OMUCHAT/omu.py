@@ -5,7 +5,6 @@ from omu.connection import ConnectionListener
 from omu.event.event import JsonEventType, SerializeEventType
 from omu.extension.endpoint.endpoint import JsonEndpointType
 from omu.extension.extension import Extension, define_extension_type
-from omu.extension.server.model.extension_info import ExtensionInfo
 from omu.interface import Keyable, Serializer
 
 from .model.table_info import TableInfo
@@ -56,7 +55,7 @@ class TableExtension(Extension):
 
 
 TableExtensionType = define_extension_type(
-    ExtensionInfo.create("table"), lambda client: TableExtension(client), lambda: []
+    "table", lambda client: TableExtension(client), lambda: []
 )
 
 
@@ -162,7 +161,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
     async def get(self, key: str) -> T | None:
         if key in self._cache:
             return self._cache[key]
-        res = await self._client.endpoints.invoke(
+        res = await self._client.endpoints.call(
             TableItemGetEndpoint, TableKeysEventData(type=self.key, items=[key])
         )
         items = self._parse_items(res["items"])
@@ -198,7 +197,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
         after: int | None = None,
         cursor: str | None = None,
     ) -> Dict[str, T]:
-        res = await self._client.endpoints.invoke(
+        res = await self._client.endpoints.call(
             TableItemFetchEndpoint,
             TableFetchReq(type=self.key, before=before, after=after, cursor=cursor),
         )
@@ -232,7 +231,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
             items.pop(cursor, None)
 
     async def size(self) -> int:
-        res = await self._client.endpoints.invoke(
+        res = await self._client.endpoints.call(
             TableItemSizeEndpoint, TableEventData(type=self.key)
         )
         return res
@@ -276,7 +275,7 @@ class TableImpl[T: Keyable](Table[T], ConnectionListener):
                     items[key] = item
                 else:
                     del items[key]
-        await self._client.endpoints.invoke(
+        await self._client.endpoints.call(
             TableProxyEndpoint,
             TableProxyEventData(
                 type=self.key,

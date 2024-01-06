@@ -4,10 +4,9 @@ from omu.client.client import Client
 from omu.connection.connection import ConnectionListener
 from omu.event.event import JsonEventType
 from omu.extension.extension import Extension, define_extension_type
-from omu.extension.server.model.extension_info import ExtensionInfo
 
 MessageExtensionType = define_extension_type(
-    ExtensionInfo.create("message"),
+    "message",
     lambda client: MessageExtension(client),
     lambda: [],
 )

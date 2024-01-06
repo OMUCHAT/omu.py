@@ -9,12 +9,11 @@ from omu.event.event import JsonEventType, SerializeEventType
 from omu.extension.endpoint.endpoint import EndpointType, JsonEndpointType
 from omu.extension.endpoint.model.endpoint_info import EndpointInfo
 from omu.extension.extension import Extension, define_extension_type
-from omu.extension.server.model.extension_info import ExtensionInfo
 from omu.extension.table.table import ModelTableType
 from omu.interface import Serializer
 
 EndpointExtensionType = define_extension_type(
-    ExtensionInfo.create("endpoint"),
+    "endpoint",
     lambda client: EndpointExtension(client),
     lambda: [],
 )
@@ -27,7 +26,7 @@ class EndpointExtension(Extension, ConnectionListener):
         self.client = client
         self.promises: Dict[int, Future] = {}
         self.endpoints: Dict[str, Tuple[EndpointType, Coro[[Any], Any]]] = {}
-        self.key = 0
+        self.call_id = 0
         client.events.register(
             EndpointCallEvent, EndpointReceiveEvent, EndpointErrorEvent
         )
@@ -37,16 +36,16 @@ class EndpointExtension(Extension, ConnectionListener):
         client.connection.add_listener(self)
 
     async def _on_receive(self, data: EndpointDataReq) -> None:
-        if data["key"] not in self.promises:
+        if data["id"] not in self.promises:
             return
-        future = self.promises[data["key"]]
+        future = self.promises[data["id"]]
         future.set_result(data["data"])
-        self.promises.pop(data["key"])
+        self.promises.pop(data["id"])
 
     async def _on_error(self, data: EndpointError) -> None:
-        if data["key"] not in self.promises:
+        if data["id"] not in self.promises:
             return
-        future = self.promises[data["key"]]
+        future = self.promises[data["id"]]
         future.set_exception(Exception(data["error"]))
 
     async def _on_call(self, data: EndpointDataReq) -> None:
@@ -59,12 +58,12 @@ class EndpointExtension(Extension, ConnectionListener):
             json = endpoint.response_serializer.serialize(res)
             await self.client.send(
                 EndpointReceiveEvent,
-                EndpointDataReq(type=data["type"], key=data["key"], data=json),
+                EndpointDataReq(type=data["type"], id=data["id"], data=json),
             )
         except Exception as e:
             await self.client.send(
                 EndpointErrorEvent,
-                EndpointError(type=data["type"], key=data["key"], error=str(e)),
+                EndpointError(type=data["type"], id=data["id"], error=str(e)),
             )
             raise e
 
@@ -96,27 +95,11 @@ class EndpointExtension(Extension, ConnectionListener):
             decorator(func)
         return decorator
 
-    async def call[Req, Res](self, name: str, req: Any, app: str | None = None) -> Any:
-        endpoint = JsonEndpointType(
-            EndpointInfo(
-                owner=app or self.client.app.key(),
-                name=name,
-            ),
-        )
-        data: Res = await self.invoke(endpoint, req)
-        return data
-
-    async def execute[Req, ResData](
-        self, endpoint: EndpointType[Req, Any, Any, ResData], data: Req
-    ) -> Future[ResData]:
-        future = await self._call(endpoint, data)
-        return future
-
-    async def invoke[Req, Res](
+    async def call[Req, Res](
         self, endpoint: EndpointType[Req, Res, Any, Any], data: Req
     ) -> Res:
         try:
-            future = await self.execute(endpoint, data)
+            future = await self._call(endpoint, data)
             return endpoint.response_serializer.deserialize(await future)
         except Exception as e:
             raise Exception(f"Error calling endpoint {endpoint.info.key()}") from e
@@ -124,31 +107,31 @@ class EndpointExtension(Extension, ConnectionListener):
     async def _call[Req, ResData](
         self, endpoint: EndpointType[Req, Any, Any, ResData], data: Req
     ) -> Future[ResData]:
-        self.key += 1
+        self.call_id += 1
         future = Future()
-        self.promises[self.key] = future
+        self.promises[self.call_id] = future
         json = endpoint.request_serializer.serialize(data)
         await self.client.send(
             EndpointCallEvent,
-            EndpointDataReq(type=endpoint.info.key(), key=self.key, data=json),
+            EndpointDataReq(type=endpoint.info.key(), id=self.call_id, data=json),
         )
         return future
 
 
 class EndpointReq(TypedDict):
     type: str
-    key: int
+    id: int
 
 
 class EndpointDataReq(TypedDict):
     type: str
-    key: int
+    id: int
     data: Any
 
 
 class EndpointError(TypedDict):
     type: str
-    key: int
+    id: int
     error: str
 
 

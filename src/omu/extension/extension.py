@@ -5,27 +5,26 @@ from typing import TYPE_CHECKING, Callable, List
 
 if TYPE_CHECKING:
     from omu.client import Client
-    from omu.extension.server.model.extension_info import ExtensionInfo
 
 
 class Extension(abc.ABC):
     pass
 
 
-class ExtensionType[T: Extension]():
+class ExtensionType[T: Extension]:
     def __init__(
         self,
-        info: ExtensionInfo,
+        key: str,
         create: Callable[[Client], T],
         dependencies: List[ExtensionType],
     ):
-        self._info = info
+        self._key = key
         self._create = create
         self._dependencies = dependencies
 
     @property
     def key(self) -> str:
-        return self._info.key()
+        return self._key
 
     def create(self, client: Client) -> T:
         return self._create(client)
@@ -34,11 +33,9 @@ class ExtensionType[T: Extension]():
         return self._dependencies
 
 
-def define_extension_type[
-    T: Extension
-](
-    info: ExtensionInfo,
+def define_extension_type[T: Extension](
+    key: str,
     create: Callable[[Client], T],
     dependencies: Callable[[], List[ExtensionType]],
 ):
-    return ExtensionType(info, create, dependencies())
+    return ExtensionType(key, create, dependencies())

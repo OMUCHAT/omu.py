@@ -5,10 +5,9 @@ from omu.connection.connection import ConnectionListener
 from omu.event.event import JsonEventType
 from omu.extension.endpoint.endpoint import JsonEndpointType
 from omu.extension.extension import Extension, define_extension_type
-from omu.extension.server.model.extension_info import ExtensionInfo
 
 RegistryExtensionType = define_extension_type(
-    ExtensionInfo.create("registry"),
+    "registry",
     lambda client: RegistryExtension(client),
     lambda: [],
 )
@@ -38,7 +37,7 @@ class RegistryExtension(Extension, ConnectionListener):
         client.connection.add_listener(self)
 
     async def get[T](self, name: str, app: str | None = None) -> T:
-        data: T = await self.client.endpoints.invoke(
+        data: T = await self.client.endpoints.call(
             RegistryGetEndpoint, f"{app or self.client.app.key()}:{name}"
         )
         return data
