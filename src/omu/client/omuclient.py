@@ -7,7 +7,7 @@ from loguru import logger
 
 from omu.client import Client
 from omu.connection import Address, ConnectionListener, WebsocketsConnection
-from omu.event import EVENTS, EventJson, EventRegistryImpl
+from omu.event import EVENTS, EventRegistryImpl
 from omu.extension.endpoint.endpoint_extension import (
     EndpointExtension,
     EndpointExtensionType,
@@ -47,8 +47,8 @@ class OmuClient(Client, ConnectionListener):
         self._listeners: List[ClientListener] = []
         self._app = app
         self._connection = connection or WebsocketsConnection(self, address)
-        self._connection.add_listener(self)
         self._events = event_registry or EventRegistryImpl(self)
+        self._connection.add_listener(self)
         self._extensions = extension_registry or ExtensionRegistryImpl(self)
 
         self.events.register(EVENTS.Ready, EVENTS.Connect)
@@ -107,7 +107,6 @@ class OmuClient(Client, ConnectionListener):
 
     async def on_connected(self) -> None:
         logger.info(f"Connected to {self._connection.address}")
-        await self.send(EVENTS.Connect, self._app)
 
     async def on_disconnected(self) -> None:
         if not self._running:
@@ -115,14 +114,12 @@ class OmuClient(Client, ConnectionListener):
         logger.warning(f"Disconnected from {self._connection.address}")
 
     async def send[T](self, event: EventType[T, Any], data: T) -> None:
-        await self._connection.send(
-            EventJson(type=event.type, data=event.serializer.serialize(data))
-        )
+        await self._connection.send(event, data)
 
-    def run(self) -> None:
+    def run(self, *, token: str | None = None, reconnect: bool = True) -> None:
         try:
             self.loop.set_exception_handler(self.handle_exception)
-            self.loop.create_task(self.start())
+            self.loop.create_task(self.start(token=token, reconnect=reconnect))
             self.loop.run_forever()
         finally:
             self.loop.close()
@@ -134,13 +131,15 @@ class OmuClient(Client, ConnectionListener):
         if exception:
             raise exception
 
-    async def start(self) -> None:
+    async def start(self, *, token: str | None = None, reconnect: bool = True) -> None:
         if self._running:
             raise RuntimeError("Already running")
         self._running = True
+        self.loop.create_task(
+            self._connection.connect(token=token, reconnect=reconnect)
+        )
         for listener in self._listeners:
             await listener.on_started()
-        await self._connection.connect()
 
     async def stop(self) -> None:
         if not self._running:

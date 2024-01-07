@@ -25,12 +25,14 @@ class EventJson[T]:
         return cls(**json)
 
     @classmethod
-    def from_json_as[_T](cls, _t: type[_T], json: dict) -> EventJson[_T]:
-        if "type" not in json:
+    def from_json_as[_T, _D](cls, event: EventType[_T, _D], data: dict) -> _T:
+        if "type" not in data:
             raise ValueError("Missing type field in event json")
-        if "data" not in json:
+        if data["type"] != event.type:
+            raise ValueError(f"Expected type {event.type} but got {data['type']}")
+        if "data" not in data:
             raise ValueError("Missing data field in event json")
-        return cls(**json)  # type: ignore
+        return event.serializer.deserialize(data["data"])
 
     def __str__(self) -> str:
         return f"{self.type}:{self.data}"

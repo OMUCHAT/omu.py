@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import abc
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from omu.connection import Address
-    from omu.event import EventJson
+    from omu.event import EventJson, EventType
 
 
 type ConnectionStatus = Literal["connecting", "connected", "disconnected"]
@@ -37,7 +37,9 @@ class Connection(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def connect(self) -> None:
+    async def connect(
+        self, *, token: str | None = None, reconnect: bool = True
+    ) -> None:
         ...
 
     @abc.abstractmethod
@@ -45,7 +47,7 @@ class Connection(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def send(self, event: EventJson) -> None:
+    async def send[T](self, event: EventType[T, Any], data: T) -> None:
         ...
 
     @abc.abstractmethod

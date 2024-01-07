@@ -1,12 +1,15 @@
 import asyncio
-from typing import List
+from typing import Any, List
 
 import aiohttp
 from aiohttp import web
+from loguru import logger
 
-from omu.client.client import Client
+from omu.client import Client
 from omu.connection import Address, Connection, ConnectionListener
-from omu.event import EventJson
+from omu.event import EVENTS, EventJson
+from omu.event.event import EventType
+from omu.event.events import ConnectEvent
 
 
 class WebsocketsConnection(Connection):
@@ -17,6 +20,8 @@ class WebsocketsConnection(Connection):
         self._listeners: List[ConnectionListener] = []
         self._socket: aiohttp.ClientWebSocketResponse | None = None
         self._session = aiohttp.ClientSession()
+        self._token: str | None = None
+        self._closed_event = asyncio.Event()
 
     @property
     def address(self) -> Address:
@@ -31,18 +36,35 @@ class WebsocketsConnection(Connection):
         protocol = "wss" if self._address.secure else "ws"
         return f"{protocol}://{self._address.host}:{self._address.port}/ws"
 
-    async def connect(self) -> None:
+    async def connect(
+        self, *, token: str | None = None, reconnect: bool = True
+    ) -> None:
         if self._socket and not self._socket.closed:
             raise RuntimeError("Already connected")
+        self._token = token
 
-        await self.disconnect()
+        while True:
+            await self.disconnect()
+            await self._connect()
+            await self.send(
+                EVENTS.Connect,
+                ConnectEvent(
+                    app=self._client.app,
+                    token=self._token,
+                ),
+            )
+            self._closed_event.clear()
+            self._client.loop.create_task(self._listen())
+            for listener in self._listeners:
+                await listener.on_connected()
+                await listener.on_status_changed("connected")
+            await self._closed_event.wait()
+            if not reconnect:
+                break
 
+    async def _connect(self):
         self._socket = await self._session.ws_connect(self._ws_endpoint)
-        asyncio.create_task(self._listen())
         self._connected = True
-        for listener in self._listeners:
-            await listener.on_connected()
-            await listener.on_status_changed("connected")
 
     async def _listen(self) -> None:
         try:
@@ -56,12 +78,20 @@ class WebsocketsConnection(Connection):
                     break
                 elif msg.type == web.WSMsgType.CLOSED:
                     break
-                event = EventJson.from_json(msg.json())
+                if msg.data is None:
+                    continue
+                try:
+                    event = EventJson.from_json(msg.json())
+                except TypeError as e:
+                    logger.error(f"Failed to parse event: {e} {msg}")
+                    raise e
                 self._client.loop.create_task(self._dispatch(event))
         finally:
             await self.disconnect()
 
     async def _dispatch(self, event: EventJson) -> None:
+        if event.type == EVENTS.Token.type:
+            self._token = event.data
         for listener in self._listeners:
             await listener.on_event(event)
 
@@ -75,17 +105,18 @@ class WebsocketsConnection(Connection):
                 pass
         self._socket = None
         self._connected = False
+        self._closed_event.set()
         for listener in self._listeners:
             await listener.on_disconnected()
             await listener.on_status_changed("disconnected")
 
-    async def send(self, event: EventJson) -> None:
+    async def send[T](self, event: EventType[T, Any], data: T) -> None:
         if not self._socket or self._socket.closed or not self._connected:
             raise RuntimeError("Not connected")
         await self._socket.send_json(
             {
                 "type": event.type,
-                "data": event.data,
+                "data": event.serializer.serialize(data),
             }
         )
 
